@@ -61,7 +61,7 @@ class BaseEnv(gym.Env):
     """
 
     # fmt: off
-    SUPPORTED_OBS_MODES = ("state", "state_dict", "none", "image")
+    SUPPORTED_OBS_MODES = ("state", "state_dict", "none", "image", "state_dict+image")
     SUPPORTED_REWARD_MODES = ("dense", "sparse")
     # fmt: on
 
@@ -177,7 +177,7 @@ class BaseEnv(gym.Env):
         self.seed(2022)
         obs = self.reset(reconfigure=True)
         self.observation_space = convert_observation_to_space(obs)
-        if self._obs_mode == "image":
+        if self._obs_mode in ["image", "state_dict+image"]:
             image_obs_space = self.observation_space.spaces["image"]
             for uid, camera in self._cameras.items():
                 image_obs_space.spaces[uid] = camera.observation_space
@@ -259,10 +259,13 @@ class BaseEnv(gym.Env):
         elif self._obs_mode == "state":
             state_dict = self._get_obs_state_dict()
             return flatten_state_dict(state_dict)
-        elif self._obs_mode == "state_dict":
-            return self._get_obs_state_dict()
         elif self._obs_mode == "image":
             return self._get_obs_images()
+        elif self._obs_mode in ["state_dict", "state_dict+image"]:
+            state_dict = self._get_obs_state_dict()
+            if self._obs_mode == "state_dict+image":
+                state_dict["image"] = self._get_obs_images()
+            return state_dict
         else:
             raise NotImplementedError(self._obs_mode)
 
