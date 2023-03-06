@@ -264,7 +264,9 @@ class BaseEnv(gym.Env):
         elif self._obs_mode in ["state_dict", "state_dict+image"]:
             state_dict = self._get_obs_state_dict()
             if self._obs_mode == "state_dict+image":
-                state_dict["image"] = self._get_obs_images()
+                cam_obs = self._get_obs_images()
+                state_dict["image"] = cam_obs['image']
+                state_dict["camera_param"] = cam_obs["camera_param"]
             return state_dict
         else:
             raise NotImplementedError(self._obs_mode)
