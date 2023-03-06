@@ -148,7 +148,7 @@ class PegInsertionSideEnv(StationaryManipulationEnv):
 
     def _get_obs_extra(self) -> OrderedDict:
         obs = OrderedDict(tcp_pose=vectorize_pose(self.tcp.pose))
-        if self._obs_mode in ["state", "state_dict"]:
+        if self._obs_mode in ["state", "state_dict", "state_dict+image"]:
             obs.update(
                 peg_pose=vectorize_pose(self.peg.pose),
                 peg_half_size=self.peg_half_size,

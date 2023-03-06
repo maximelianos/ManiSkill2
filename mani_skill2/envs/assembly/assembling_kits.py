@@ -136,7 +136,7 @@ class AssemblingKitsEnv(StationaryManipulationEnv):
             obj_init_pos=self._obj_init_pos,
             obj_goal_pos=self._obj_goal_pos,
         )
-        if self._obs_mode in ["state", "state_dict"]:
+        if self._obs_mode in ["state", "state_dict", "state_dict+image"]:
             obs.update(
                 obj_pose=vectorize_pose(self.obj.pose),
                 tcp_to_obj_pos=self.obj.pose.p - self.tcp.pose.p,

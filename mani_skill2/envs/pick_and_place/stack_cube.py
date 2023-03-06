@@ -96,7 +96,7 @@ class StackCubeEnv(StationaryManipulationEnv):
         obs = OrderedDict(
             tcp_pose=vectorize_pose(self.tcp.pose),
         )
-        if self._obs_mode in ["state", "state_dict"]:
+        if self._obs_mode in ["state", "state_dict", "state_dict+image"]:
             obs.update(
                 cubeA_pose=vectorize_pose(self.cubeA.pose),
                 cubeB_pose=vectorize_pose(self.cubeB.pose),

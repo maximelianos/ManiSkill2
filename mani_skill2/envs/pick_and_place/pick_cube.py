@@ -56,7 +56,7 @@ class PickCubeEnv(StationaryManipulationEnv):
             tcp_pose=vectorize_pose(self.tcp.pose),
             goal_pos=self.goal_pos,
         )
-        if self._obs_mode in ["state", "state_dict"]:
+        if self._obs_mode in ["state", "state_dict", "state_dict+image"]:
             obs.update(
                 tcp_to_goal_pos=self.goal_pos - self.tcp.pose.p,
                 obj_pose=vectorize_pose(self.obj.pose),
@@ -136,7 +136,7 @@ class LiftCubeEnv(PickCubeEnv):
         obs = OrderedDict(
             tcp_pose=vectorize_pose(self.tcp.pose),
         )
-        if self._obs_mode in ["state", "state_dict"]:
+        if self._obs_mode in ["state", "state_dict", "state_dict+image"]:
             obs.update(
                 obj_pose=vectorize_pose(self.obj.pose),
                 tcp_to_obj_pos=self.obj.pose.p - self.tcp.pose.p,
