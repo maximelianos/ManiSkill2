@@ -59,7 +59,7 @@ class UniformSampler:
         return pos
 
 
-@register_env("StackCube-v0", max_episode_steps=200)
+@register_env("StackCube-v0", max_episode_steps=1000)
 class StackCubeEnv(StationaryManipulationEnv):
     def _get_default_scene_config(self):
         scene_config = super()._get_default_scene_config()
