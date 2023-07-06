@@ -78,7 +78,7 @@ def make(env_id, as_gym=True, enable_segmentation=False, **kwargs):
     obs_mode = kwargs.get("obs_mode")
     if obs_mode is None:
         obs_mode = env_spec.cls.SUPPORTED_OBS_MODES[0]
-    if obs_mode not in ["state", "state_dict", "none", "particles"]:
+    if obs_mode not in ["state", "state_dict", "none", "particles", "state_dict+image"]:
         kwargs["obs_mode"] = "image"
 
     # Add segmentation texture

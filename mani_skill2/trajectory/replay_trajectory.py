@@ -90,6 +90,7 @@ def from_pd_joint_pos_to_ee(
     render=False,
     pbar=None,
     verbose=False,
+    replay_memory=None,
 ):
     n = len(ori_actions)
     if pbar is not None:
@@ -159,7 +160,9 @@ def from_pd_joint_pos_to_ee(
             output_action_dict["arm"] = arm_action
             output_action = controller.from_action_dict(output_action_dict)
 
-            _, _, _, info = env.step(output_action)
+            obs, reward, done, info = env.step(output_action)
+            if replay_memory is not None:
+                replay_memory.add(obs, output_action, [1])
             if render:
                 env.render()
 
@@ -177,6 +180,7 @@ def from_pd_joint_pos(
     render=False,
     pbar=None,
     verbose=False,
+    replay_memory=None,
 ):
     if "ee" in output_mode:
         return from_pd_joint_pos_to_ee(**locals())
@@ -228,7 +232,9 @@ def from_pd_joint_pos(
             output_action_dict["arm"] = arm_action
 
             output_action = controller.from_action_dict(output_action_dict)
-            _, _, _, info = env.step(output_action)
+            obs, reward, done, info = env.step(output_action)
+            if replay_memory is not None:
+                replay_memory.add(obs, output_action, [1])
             if render:
                 env.render()
 

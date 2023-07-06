@@ -149,7 +149,7 @@ class PlugChargerEnv(StationaryManipulationEnv):
 
     def _get_obs_extra(self) -> OrderedDict:
         obs = OrderedDict(tcp_pose=vectorize_pose(self.tcp.pose))
-        if self._obs_mode in ["state", "state_dict"]:
+        if self._obs_mode in ["state", "state_dict", "state_dict+image"]:
             obs.update(
                 charger_pose=vectorize_pose(self.charger.pose),
                 receptacle_pose=vectorize_pose(self.receptacle.pose),

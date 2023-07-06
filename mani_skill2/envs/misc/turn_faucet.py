@@ -324,7 +324,7 @@ class TurnFaucetEnv(TurnFaucetBaseEnv):
             target_joint_axis=self.target_joint_axis,
             target_link_pos=self.target_link_pos,
         )
-        if self._obs_mode in ["state", "state_dict"]:
+        if self._obs_mode in ["state", "state_dict", "state_dict+image"]:
             angle_dist = self.target_angle - self.current_angle
             obs["angle_dist"] = angle_dist
         return obs

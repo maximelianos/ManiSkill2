@@ -48,6 +48,7 @@ class PickSingleEnv(StationaryManipulationEnv):
                 "Please download the corresponding assets:"
                 "`python -m mani_skill2.utils.download_asset ${ENV_ID}`."
             )
+
         self.model_db: Dict[str, Dict] = load_json(model_json)
 
         if isinstance(model_ids, str):
@@ -198,7 +199,7 @@ class PickSingleEnv(StationaryManipulationEnv):
             tcp_pose=vectorize_pose(self.tcp.pose),
             goal_pos=self.goal_pos,
         )
-        if self._obs_mode in ["state", "state_dict"]:
+        if self._obs_mode in ["state", "state_dict", "state_dict+image"]:
             obs.update(
                 tcp_to_goal_pos=self.goal_pos - self.tcp.pose.p,
                 obj_pose=vectorize_pose(self.obj_pose),

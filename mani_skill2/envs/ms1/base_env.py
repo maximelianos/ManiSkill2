@@ -188,7 +188,7 @@ class MS1BaseEnv(BaseEnv):
     
     def _get_obs_extra(self) -> OrderedDict:
         obs = OrderedDict()
-        if self._obs_mode in ["state", "state_dict"]:
+        if self._obs_mode in ["state", "state_dict", "state_dict+image"]:
             obs.update(self._get_obs_priviledged())
         return obs
 

@@ -167,7 +167,7 @@ class PickClutterEnv(StationaryManipulationEnv):
             goal_pos=self.goal_pos,
             obj_start_pos=self.obj_start_pos,
         )
-        if self._obs_mode in ["state", "state_dict"]:
+        if self._obs_mode in ["state", "state_dict", "state_dict+image"]:
             obs.update(
                 tcp_to_goal_pos=self.goal_pos - self.tcp.pose.p,
                 obj_pose=vectorize_pose(self.obj_pose),

@@ -59,7 +59,7 @@ class UniformSampler:
         return pos
 
 
-@register_env("StackCube-v0", max_episode_steps=200)
+@register_env("StackCube-v0", max_episode_steps=1000)
 class StackCubeEnv(StationaryManipulationEnv):
     def _get_default_scene_config(self):
         scene_config = super()._get_default_scene_config()
@@ -96,7 +96,7 @@ class StackCubeEnv(StationaryManipulationEnv):
         obs = OrderedDict(
             tcp_pose=vectorize_pose(self.tcp.pose),
         )
-        if self._obs_mode in ["state", "state_dict"]:
+        if self._obs_mode in ["state", "state_dict", "state_dict+image"]:
             obs.update(
                 cubeA_pose=vectorize_pose(self.cubeA.pose),
                 cubeB_pose=vectorize_pose(self.cubeB.pose),
