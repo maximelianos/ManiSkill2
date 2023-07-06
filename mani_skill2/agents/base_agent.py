@@ -83,6 +83,12 @@ class BaseAgent:
     def get_default_config(cls) -> AgentConfig:
         raise NotImplementedError
 
+    def _get_urdf_path(self):
+        return format_path(str(self.urdf_path))
+
+    def _get_srdf_path(self):
+        return format_path(str(self.srdf_path))
+
     def _load_articulation(self):
         loader = self.scene.create_urdf_loader()
         loader.fix_root_link = self.fix_root_link
