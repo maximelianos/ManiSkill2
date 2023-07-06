@@ -1,4 +1,5 @@
 import os
+from enum import Enum
 from collections import OrderedDict
 from typing import Dict, Optional, Sequence, Union
 
@@ -29,6 +30,18 @@ from mani_skill2.utils.trimesh_utils import (
     merge_meshes,
 )
 from mani_skill2.utils.visualization.misc import observations_to_images, tile_images
+
+
+class ActionType(Enum):
+    MOVE_TO = 0
+    CLOSE_GRIPPER = 1
+    OPEN_GRIPPER = 2
+
+
+class Action():
+    def __init__(self, action_type, goal=None) -> None:
+        self.action_type = action_type
+        self.goal = goal
 
 
 class BaseEnv(gym.Env):
@@ -743,3 +756,6 @@ class BaseEnv(gym.Env):
         scene_mesh = merge_meshes(meshes)
         scene_pcd = scene_mesh.sample(num_points)
         return scene_pcd
+
+    def _get_solution_sequence(self):
+        raise NotImplementedError

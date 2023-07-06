@@ -1,9 +1,12 @@
 from collections import OrderedDict
+from copy import copy
 from typing import List, Tuple
 
 import numpy as np
 import sapien.core as sapien
 from transforms3d.euler import euler2quat
+
+from mani_skill2.envs.sapien_env import Action, ActionType
 
 from mani_skill2.utils.registration import register_env
 from mani_skill2.utils.sapien_utils import check_actor_static, vectorize_pose
@@ -105,6 +108,34 @@ class StackCubeEnv(StationaryManipulationEnv):
                 cubeA_to_cubeB_pos=self.cubeB.pose.p - self.cubeA.pose.p,
             )
         return obs
+
+    def _get_solution_sequence(self):
+        cube_a_p = self.cubeA.pose.p
+        move_goal_a = copy(self.cubeA.pose)
+        move_goal_a.set_p(cube_a_p + np.array([0, 0, 0.05]))
+
+        cube_b_p = self.cubeB.pose.p
+        move_goal_b = copy(self.cubeB.pose)
+        move_goal_b.set_p(cube_b_p + np.array([0, 0, 0.1]))
+
+        # Translate move_goal from world frame to robot root link frame, see
+        # https://github.com/haosulab/SAPIEN/blob/ab1d9a9fa1428484a918e61185ae9df2beb7cb30/docs/source/tutorial/motion_planning/plan_a_path.rst#L37
+        root_pose = self.agent.robot.get_links()[0].get_pose()
+        move_goal_a = move_goal_a.transform(root_pose.inv())
+        move_goal_b = move_goal_b.transform(root_pose.inv())
+
+        # Transform to np.ndarray
+        move_goal_a = np.concatenate([move_goal_a.p, move_goal_a.q])
+        move_goal_b = np.concatenate([move_goal_b.p, move_goal_b.q])
+
+        seq = [
+            Action(ActionType.MOVE_TO, goal=move_goal_a),
+            Action(ActionType.CLOSE_GRIPPER),
+            Action(ActionType.MOVE_TO, goal=move_goal_b),
+            Action(ActionType.OPEN_GRIPPER),
+        ]
+
+        return seq
 
     def _check_cubeA_on_cubeB(self):
         pos_A = self.cubeA.pose.p
