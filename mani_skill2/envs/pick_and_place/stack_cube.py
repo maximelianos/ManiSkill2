@@ -118,29 +118,11 @@ class StackCubeEnv(StationaryManipulationEnv):
         root2w = self.agent.robot.get_root_pose()
         w2root = root2w.inv()
 
-        # NOTE: For verification as functions are not documented.
-        ga2w = goal_a2w.to_transformation_matrix()
-        r2w = root2w.to_transformation_matrix()
-        w2r = np.linalg.inv(r2w)
-        # r2ga = np.linalg.inv(w2r) @ w2ga
-        ga2r = ga2w @ w2r
-        print(ga2r)
-
-        # root2move_goal_a = w2root.transform(goal_a2w)
-        # root2move_goal_b = w2root.transform(goal_b2w)
         root2move_goal_a = w2root.transform(goal_a2w)
         root2move_goal_b = w2root.transform(goal_b2w)
 
-        print(root2move_goal_a.to_transformation_matrix())
-
-        # cubeA_pose_wrt_tcp = self.tcp.pose.inv() * self.cubeA.pose
-        # print(cubeA_pose_wrt_tcp.to_transformation_matrix())
-        cubeA_pose_wrt_root = self.agent.robot.get_root_pose().inv() * self.cubeA.pose
-        print(cubeA_pose_wrt_root.to_transformation_matrix())
-
-
         # Transform to np.ndarray
-        move_goal_a = np.concatenate([cubeA_pose_wrt_root.p, cubeA_pose_wrt_root.q])
+        move_goal_a = np.concatenate([root2move_goal_a.p, root2move_goal_a.q])
         move_goal_b = np.concatenate([root2move_goal_b.p, root2move_goal_b.q])
 
         seq = [
