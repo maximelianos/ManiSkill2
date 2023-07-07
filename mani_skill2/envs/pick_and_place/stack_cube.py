@@ -110,23 +110,38 @@ class StackCubeEnv(StationaryManipulationEnv):
         return obs
 
     def _get_solution_sequence(self):
-        cube_a_p = self.cubeA.pose.p
-        move_goal_a = copy(self.cubeA.pose)
-        move_goal_a.set_p(cube_a_p + np.array([0, 0, 0.05]))
-
-        cube_b_p = self.cubeB.pose.p
-        move_goal_b = copy(self.cubeB.pose)
-        move_goal_b.set_p(cube_b_p + np.array([0, 0, 0.1]))
+        goal_a2w = copy(self.cubeA.pose)
+        goal_b2w = copy(self.cubeB.pose)
 
         # Translate move_goal from world frame to robot root link frame, see
         # https://github.com/haosulab/SAPIEN/blob/ab1d9a9fa1428484a918e61185ae9df2beb7cb30/docs/source/tutorial/motion_planning/plan_a_path.rst#L37
-        root_pose = self.agent.robot.get_links()[0].get_pose()
-        move_goal_a = move_goal_a.transform(root_pose.inv())
-        move_goal_b = move_goal_b.transform(root_pose.inv())
+        root2w = self.agent.robot.get_root_pose()
+        w2root = root2w.inv()
+
+        # NOTE: For verification as functions are not documented.
+        ga2w = goal_a2w.to_transformation_matrix()
+        r2w = root2w.to_transformation_matrix()
+        w2r = np.linalg.inv(r2w)
+        # r2ga = np.linalg.inv(w2r) @ w2ga
+        ga2r = ga2w @ w2r
+        print(ga2r)
+
+        # root2move_goal_a = w2root.transform(goal_a2w)
+        # root2move_goal_b = w2root.transform(goal_b2w)
+        root2move_goal_a = w2root.transform(goal_a2w)
+        root2move_goal_b = w2root.transform(goal_b2w)
+
+        print(root2move_goal_a.to_transformation_matrix())
+
+        # cubeA_pose_wrt_tcp = self.tcp.pose.inv() * self.cubeA.pose
+        # print(cubeA_pose_wrt_tcp.to_transformation_matrix())
+        cubeA_pose_wrt_root = self.agent.robot.get_root_pose().inv() * self.cubeA.pose
+        print(cubeA_pose_wrt_root.to_transformation_matrix())
+
 
         # Transform to np.ndarray
-        move_goal_a = np.concatenate([move_goal_a.p, move_goal_a.q])
-        move_goal_b = np.concatenate([move_goal_b.p, move_goal_b.q])
+        move_goal_a = np.concatenate([cubeA_pose_wrt_root.p, cubeA_pose_wrt_root.q])
+        move_goal_b = np.concatenate([root2move_goal_b.p, root2move_goal_b.q])
 
         seq = [
             Action(ActionType.MOVE_TO, goal=move_goal_a),
