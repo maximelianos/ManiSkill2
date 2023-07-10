@@ -463,6 +463,23 @@ class BaseEnv(gym.Env):
             pose = sapien.Pose([0, 0, 1.7], [0.5, 0.5, -0.5, -0.5])
             self._scene.set_ambient_light([0.1, 0.1, 0.1])
             self._scene.add_point_light([-0.349, 0, 1.4], [1.0, 0.9, 0.9])
+        elif self.bg_name == "small_office":
+            path = ASSET_DIR / "background/small_office.glb"
+            pose = sapien.Pose([0.4, 0.5, 0.4], [0.5, 0.5, 0.5, 0.5])
+            self._scene.set_ambient_light([0.1, 0.1, 0.1])
+            self._scene.add_point_light([0.3, 0, 1.0], [1.0, 0.9, 0.9])
+        elif self.bg_name == "kitchen":
+            path = ASSET_DIR / "background/kitchen.glb"
+            pose = sapien.Pose([1.8, -3.25, -0.5], [0.5, 0.5, 0.5, 0.5])
+            self._scene.set_ambient_light([0.4, 0.4, 0.4])
+            self._scene.add_point_light([-0.349, 0, -0.2], [1.0, 0.9, 0.9],
+                                        far=2)
+        elif self.bg_name == "kitchen2":
+            path = ASSET_DIR / "background/kitchen2.glb"
+            pose = sapien.Pose([-2.8, -1.5, -1], [0.5, 0.5, 0.5, 0.5])
+            self._scene.set_ambient_light([0.3, 0.3, 0.3])
+            self._scene.add_point_light([-0.349, 0, 1.4], [1.0, 0.9, 0.9],
+                                        far=2)
         else:
             raise NotImplementedError("Unsupported background: {}".format(self.bg_name))
 
