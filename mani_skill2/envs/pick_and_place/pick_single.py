@@ -422,7 +422,7 @@ def build_actor_ycb(
     return actor
 
 
-@register_env("PickSingleYCB-v0", max_episode_steps=200)
+@register_env("PickSingleYCB-v0", max_episode_steps=1000)
 class PickSingleYCBEnv(PickSingleEnv):
     DEFAULT_ASSET_ROOT = "{ASSET_DIR}/mani_skill2_ycb"
     DEFAULT_MODEL_JSON = "info_pick_v0.json"
