@@ -14,6 +14,7 @@ import gym
 import h5py
 import numpy as np
 import sapien.core as sapien
+import torch
 from tqdm.auto import tqdm
 from transforms3d.quaternions import quat2axangle
 
@@ -161,8 +162,8 @@ def from_pd_joint_pos_to_ee(
             output_action = controller.from_action_dict(output_action_dict)
 
             obs, reward, done, info = env.step(output_action)
-            obs.action = output_action
-            obs.feedback = [1]
+            obs.action = torch.from_numpy(output_action)
+            obs.feedback = torch.Tensor([1])
             if replay_memory is not None:
                 replay_memory.add_observation(obs)
             if render:
@@ -235,8 +236,8 @@ def from_pd_joint_pos(
 
             output_action = controller.from_action_dict(output_action_dict)
             obs, reward, done, info = env.step(output_action)
-            obs.action = output_action
-            obs.feedback = [1]
+            obs.action = torch.from_numpy(output_action)
+            obs.feedback = torch.Tensor([1])
             if replay_memory is not None:
                 replay_memory.add_observation(obs)
             if render:
