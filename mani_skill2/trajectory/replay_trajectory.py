@@ -161,8 +161,10 @@ def from_pd_joint_pos_to_ee(
             output_action = controller.from_action_dict(output_action_dict)
 
             obs, reward, done, info = env.step(output_action)
+            obs.action = output_action
+            obs.feedback = [1]
             if replay_memory is not None:
-                replay_memory.add(obs, output_action, [1])
+                replay_memory.add_observation(obs)
             if render:
                 env.render()
 
@@ -233,8 +235,10 @@ def from_pd_joint_pos(
 
             output_action = controller.from_action_dict(output_action_dict)
             obs, reward, done, info = env.step(output_action)
+            obs.action = output_action
+            obs.feedback = [1]
             if replay_memory is not None:
-                replay_memory.add(obs, output_action, [1])
+                replay_memory.add_observation(obs)
             if render:
                 env.render()
 
