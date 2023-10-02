@@ -121,9 +121,23 @@ class StackCubeEnv(StationaryManipulationEnv):
         root2move_goal_a = w2root.transform(goal_a2w)
         root2move_goal_b = w2root.transform(goal_b2w)
 
+        # set the x and y part of the rotation to 0, as the gripper does not
+        # need to match the rotation of the cube
+        # NOTE: SAPIEN quaternions are real-first, ie wxyz
+        # a_rot_z = root2move_goal_a.q[3]
+        # a_rot_w = np.sqrt(1 - a_rot_z ** 2)
+        # a_rot = np.array([0, a_rot_w, 0, a_rot_z])
+
+        # TODO: fix rotations in env plan generation - the above idea does not
+        # yet work.
+        a_rot = [-0.00981868, 0.999318, -0.0229363, -0.0272139]
+        b_rot = [-0.00981868, 0.999318, -0.0229363, -0.0272139]
+        # then: look in extract_demos, what the rest kwargs are and reset orig
+        # env to target env's kwargs
+
         # Transform to np.ndarray
-        move_goal_a = np.concatenate([root2move_goal_a.p, root2move_goal_a.q])
-        move_goal_b = np.concatenate([root2move_goal_b.p, root2move_goal_b.q])
+        move_goal_a = np.concatenate([root2move_goal_a.p, a_rot])
+        move_goal_b = np.concatenate([root2move_goal_b.p, b_rot])
 
         seq = [
             Action(ActionType.MOVE_TO, goal=move_goal_a),
