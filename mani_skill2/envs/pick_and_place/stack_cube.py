@@ -4,7 +4,9 @@ from typing import List, Tuple
 
 import numpy as np
 import sapien.core as sapien
-from transforms3d.euler import euler2quat
+
+from math import pi
+from transforms3d.euler import euler2quat, quat2euler
 
 from mani_skill2.envs.sapien_env import Action, ActionType
 
@@ -121,28 +123,40 @@ class StackCubeEnv(StationaryManipulationEnv):
         root2move_goal_a = w2root.transform(goal_a2w)
         root2move_goal_b = w2root.transform(goal_b2w)
 
-        # set the x and y part of the rotation to 0, as the gripper does not
-        # need to match the rotation of the cube
-        # NOTE: SAPIEN quaternions are real-first, ie wxyz
-        # a_rot_z = root2move_goal_a.q[3]
-        # a_rot_w = np.sqrt(1 - a_rot_z ** 2)
-        # a_rot = np.array([0, a_rot_w, 0, a_rot_z])
+        # get z rotation of cubes to match gripper rotation
+        a_quat = root2move_goal_a.q
+        a_euler = quat2euler(a_quat)
+        # NOTE: get the closest rotation to pick the cube. With the + pi/4, we
+        # get the closest rotation to the gripper [-45, 45) degrees. Without it
+        # the angle would be [0, 90) degrees and unimodal.
+        a_angle_z = (a_euler[2] + pi/4) % (pi/2) - (pi/4)  # mod by 90 degrees
+        a_euler = (-pi, 0, a_angle_z)  # rotate 180 degrees around x axis
+        a_rot = euler2quat(*a_euler)
 
-        # TODO: fix rotations in env plan generation - the above idea does not
-        # yet work.
-        a_rot = [-0.00981868, 0.999318, -0.0229363, -0.0272139]
-        b_rot = [-0.00981868, 0.999318, -0.0229363, -0.0272139]
-        # then: look in extract_demos, what the rest kwargs are and reset orig
-        # env to target env's kwargs
+        b_quat = root2move_goal_b.q
+        b_euler = quat2euler(b_quat)
+        b_angle_z = (b_euler[2] + pi/4) % (pi/2) - (pi/4)  # mod by 90 degrees
+        b_euler = (-pi, 0, b_angle_z)  # rotate 180 degrees around x axis
+        b_rot = euler2quat(*b_euler)
+
+        z_offset = np.array([0, 0, self.box_half_size[2]])
 
         # Transform to np.ndarray
+        move_goal_above_a = np.concatenate(
+            [root2move_goal_a.p + z_offset * 2, a_rot])
         move_goal_a = np.concatenate([root2move_goal_a.p, a_rot])
-        move_goal_b = np.concatenate([root2move_goal_b.p, b_rot])
+        move_goal_above_b = np.concatenate(
+            [root2move_goal_b.p + z_offset * 4, b_rot])
+        move_goal_on_b = np.concatenate(
+            [root2move_goal_b.p + 2 * z_offset, b_rot])
 
         seq = [
+            Action(ActionType.MOVE_TO, goal=move_goal_above_a),
             Action(ActionType.MOVE_TO, goal=move_goal_a),
             Action(ActionType.CLOSE_GRIPPER),
-            Action(ActionType.MOVE_TO, goal=move_goal_b),
+            Action(ActionType.MOVE_TO, goal=move_goal_above_a),
+            Action(ActionType.MOVE_TO, goal=move_goal_above_b),
+            Action(ActionType.MOVE_TO, goal=move_goal_on_b),
             Action(ActionType.OPEN_GRIPPER),
         ]
 
