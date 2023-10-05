@@ -1,5 +1,6 @@
 from collections import OrderedDict
 from copy import copy
+from loguru import logger
 from pathlib import Path
 from typing import List, Tuple, Dict
 
@@ -21,8 +22,12 @@ from .base_env import StationaryManipulationEnv
 from .pick_single import PickSingleYCBEnv, build_actor_ycb, random_choice
 from .stack_cube import UniformSampler
 
+
 class MultiObjectYCB(StationaryManipulationEnv):
     objs: tuple[sapien.Actor, ...]
+
+    DEFAULT_ASSET_ROOT = PickSingleYCBEnv.DEFAULT_ASSET_ROOT
+    DEFAULT_MODEL_JSON = PickSingleYCBEnv.DEFAULT_MODEL_JSON
 
     def __init__(
         self,
@@ -31,7 +36,6 @@ class MultiObjectYCB(StationaryManipulationEnv):
         model_ids: Tuple[Tuple[str]] = (("014_lemon",), ("024_bowl",)),
         obj_init_rot_z=True,
         obj_init_rot=(0, 0),
-        goal_thresh=0.025,
         **kwargs,
     ):
         if asset_root is None:
@@ -60,16 +64,29 @@ class MultiObjectYCB(StationaryManipulationEnv):
         self.model_scales = [None for _ in range(len(model_ids))]
         self.model_bbox_size = [None for _ in range(len(model_ids))]
 
-        # TODO:
         self.obj_init_rot_z = obj_init_rot_z
         self.obj_init_rot = obj_init_rot
-        self.goal_thresh = goal_thresh
 
         self._check_assets()
-        StationaryManipulationEnv.__init__(**kwargs)
+        super().__init__(**kwargs)
 
     def _check_assets(self):
-        return PickSingleYCBEnv._check_assets(self)
+        models_dir = self.asset_root / "models"
+        for model_id in tuple([id for tup in self.model_ids for id in tup]):
+            model_dir = models_dir / model_id
+            if not model_dir.exists():
+                raise FileNotFoundError(
+                    f"{model_dir} is not found."
+                    "Please download (ManiSkill2) YCB models:"
+                    "`python -m mani_skill2.utils.download_asset ycb`."
+                )
+
+            collision_file = model_dir / "collision.obj"
+            if not collision_file.exists():
+                raise FileNotFoundError(
+                    "convex.obj has been renamed to collision.obj. "
+                    "Please re-download YCB models."
+                )
 
     # NOTE: not sure if enable_pcm is necessary. They do it in stack_cube and
     # in the assmebly envs. Maybe it's for collision detection?
@@ -88,7 +105,7 @@ class MultiObjectYCB(StationaryManipulationEnv):
 
     def _load_objects(self):
         objs =[]
-        for i, s in zip(self.model_ids, self.model_scales):
+        for i, s in zip(self.model_id_per_obj, self.model_scales):
             density = self.model_db[i].get("density", 1000)
             obj = build_actor_ycb(
                 i,
@@ -114,7 +131,12 @@ class MultiObjectYCB(StationaryManipulationEnv):
         """Set the model ids and scale. If not provided, choose randomly."""
         reconfigure = False
 
-        for j, model_id, model_scale in enumerate(zip(model_ids, model_scales)):
+        if model_ids is None:
+            model_ids = (None for _ in range(len(self.model_ids)))
+        if model_scales is None:
+            model_scales = (None for _ in range(len(self.model_ids)))
+
+        for j, (model_id, model_scale) in enumerate(zip(model_ids, model_scales)):
             if model_id is None:
                 model_id = random_choice(self.model_ids[j], self._episode_rng)
             if model_id != self.model_id_per_obj[j]:
@@ -122,38 +144,41 @@ class MultiObjectYCB(StationaryManipulationEnv):
                 reconfigure = True
 
             if model_scale is None:
-                model_scales = self.model_db[self.model_ids[j]].get("scales")
-                if model_scales is None:
+                obj_model_scales = self.model_db[self.model_id_per_obj[j]].get(
+                    "scales")
+                if obj_model_scales is None:
                     model_scale = 1.0
                 else:
-                    model_scale = random_choice(model_scales[j],
+                    model_scale = random_choice(obj_model_scales,
                                                 self._episode_rng)
             if model_scale != self.model_scales[j]:
                 self.model_scales[j] = model_scale
                 reconfigure = True
 
-            model_info = self.model_db[self.self.model_id_per_obj[j]]
+            model_info = self.model_db[self.model_id_per_obj[j]]
             if "bbox" in model_info:
                 bbox = model_info["bbox"]
                 bbox_size = np.array(bbox["max"]) - np.array(bbox["min"])
-                self.model_bbox_size[j] = bbox_size * self.model_scale
+                self.model_bbox_size[j] = bbox_size * model_scale
             else:
                 self.model_bbox_size[j] = None
 
         return reconfigure
 
-    def _get_init_z(self):
-        return PickSingleYCBEnv._get_init_z(self)
+    def _get_init_z(self, obj_idx):
+        bbox_min = self.model_db[self.model_id_per_obj[obj_idx]]["bbox"]["min"]
+        return -bbox_min[2] * self.model_scales[obj_idx] + 0.05
 
     def _settle(self, t):
         return PickSingleYCBEnv._settle(self, t)
 
     def _initialize_actors(self):
+        logger.warning("TODO: implement radial object placement")
         for j, obj in enumerate(self.objs):
             # The object will fall from a certain height
             # TODO: replace by my own arc-sampling
             xy = self._episode_rng.uniform(-0.1, 0.1, [2])
-            z = self._get_init_z()
+            z = self._get_init_z(j)
             p = np.hstack([xy, z])
             q = [1, 0, 0, 0]
 
@@ -270,7 +295,7 @@ class AToBEnv(MultiObjectYCB):
         pos_A = self.objs[0].pose.p
         pos_B = self.objs[1].pose.p
         offset = pos_A - pos_B
-        is_obj_placed = np.linalg.norm(offset) <= self.goal_thresh
+        is_obj_placed = np.linalg.norm(offset) <= self.goal_tresh
 
         return is_obj_placed
 
@@ -290,4 +315,5 @@ class AToBEnv(MultiObjectYCB):
         }
 
     def compute_dense_reward(self, info, **kwargs):
-       raise NotImplementedError
+        logger.warning("Did not implement dense reward.")
+        return 0
