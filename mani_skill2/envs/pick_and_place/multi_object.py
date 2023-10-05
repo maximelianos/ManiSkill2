@@ -268,7 +268,7 @@ class AToBEnv(MultiObjectYCB):
         b_euler = (-pi, 0, b_angle_z)  # rotate 180 degrees around x axis
         b_rot = euler2quat(*b_euler)
 
-        z_offset = np.array([0, 0, self.box_half_size[2]])
+        z_offset = np.array([0, 0, self.model_bbox_size[1][2]])
 
         # Transform to np.ndarray
         move_goal_above_a = np.concatenate(
