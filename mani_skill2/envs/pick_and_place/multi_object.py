@@ -12,15 +12,13 @@ from transforms3d.euler import euler2quat, quat2euler
 from transforms3d.quaternions import axangle2quat, qmult
 
 from mani_skill2.envs.sapien_env import Action, ActionType
-
-from mani_skill2 import ASSET_DIR, format_path
+from mani_skill2 import format_path
 from mani_skill2.utils.io_utils import load_json
 from mani_skill2.utils.registration import register_env
-from mani_skill2.utils.sapien_utils import check_actor_static, vectorize_pose
+from mani_skill2.utils.sapien_utils import check_actor_static, vectorize_pose, set_actor_visibility
 
 from .base_env import StationaryManipulationEnv
 from .pick_single import PickSingleYCBEnv, build_actor_ycb, random_choice
-from .stack_cube import UniformSampler
 
 
 class MultiObjectYCB(StationaryManipulationEnv):
@@ -173,10 +171,8 @@ class MultiObjectYCB(StationaryManipulationEnv):
         return PickSingleYCBEnv._settle(self, t)
 
     def _initialize_actors(self):
-        logger.warning("TODO: implement radial object placement")
         for j, obj in enumerate(self.objs):
             # The object will fall from a certain height
-            # TODO: replace by my own arc-sampling
             xy = self._episode_rng.uniform(-0.1, 0.1, [2])
             z = self._get_init_z(j)
             p = np.hstack([xy, z])
@@ -233,18 +229,71 @@ class MultiObjectYCB(StationaryManipulationEnv):
             obs.update(**pose_dict)
        return obs
 
-
 @register_env("AToB-v0", max_episode_steps=1000)
 class AToBEnv(MultiObjectYCB):
     def __init__(
         self,
         *args,
-        goal_tresh=0.025,
+        goal_tresh=0.05,
         **kwargs
     ):
         super().__init__(*args, **kwargs)
 
         self.goal_tresh = goal_tresh
+
+    def _initialize_actors(self):
+        # radial object placement
+        x_prev, y_prev = -0.1, -0.1
+
+        for j, obj in enumerate(self.objs):
+            # The object will fall from a certain height
+            angle = self._episode_rng.uniform(1/8 * np.pi, 7/8 * np.pi)
+            radius = 0.15
+            x = radius * np.cos(angle)
+            y = radius * np.sin(angle)
+            x += x_prev
+            y += y_prev
+            z = self._get_init_z(j)
+            p = np.hstack([x, y, z])
+            q = [1, 0, 0, 0]
+
+            x_prev = x
+            y_prev = y
+
+            # Rotate along z-axis
+            if self.obj_init_rot_z:
+                ori = self._episode_rng.uniform(0, 2 * np.pi)
+                q = euler2quat(0, 0, ori)
+
+            # Rotate along a random axis by a small angle
+            if self.obj_init_rot[j] > 0:
+                axis = self._episode_rng.uniform(-1, 1, 3)
+                axis = axis / max(np.linalg.norm(axis), 1e-6)
+                ori = self._episode_rng.uniform(0, self.obj_init_rot)
+                q = qmult(q, axangle2quat(axis, ori, True))
+            obj.set_pose(Pose(p, q))
+
+            # Move the robot far away to avoid collision
+            # The robot should be initialized later
+            self.agent.robot.set_pose(Pose([-10, 0, 0]))
+
+            # Lock rotation around x and y
+            obj.lock_motion(0, 0, 0, 1, 1, 0)
+            self._settle(0.5)
+
+            # Unlock motion
+            obj.lock_motion(0, 0, 0, 0, 0, 0)
+            # NOTE(jigu): Explicit set pose to ensure the actor does not sleep
+            obj.set_pose(obj.pose)
+            obj.set_velocity(np.zeros(3))
+            obj.set_angular_velocity(np.zeros(3))
+            self._settle(0.5)
+
+            # Some objects need longer time to settle
+            lin_vel = np.linalg.norm(obj.velocity)
+            ang_vel = np.linalg.norm(obj.angular_velocity)
+            if lin_vel > 1e-3 or ang_vel > 1e-2:
+                self._settle(0.5)
 
     def _get_solution_sequence(self):
         goal_a2w = copy(self.objs[0].pose)
@@ -258,15 +307,11 @@ class AToBEnv(MultiObjectYCB):
 
         a_quat = root2move_goal_a.q
         a_euler = quat2euler(a_quat)
-        a_angle_z = a_euler[2]
+        a_angle_z = (a_euler[2] + 3/4 * pi) % pi - 1/2 * pi
         a_euler = (-pi, 0, a_angle_z)  # rotate 180 degrees around x axis
         a_rot = euler2quat(*a_euler)
 
-        b_quat = root2move_goal_b.q
-        b_euler = quat2euler(b_quat)
-        b_angle_z = b_euler[2]
-        b_euler = (-pi, 0, b_angle_z)  # rotate 180 degrees around x axis
-        b_rot = euler2quat(*b_euler)
+        b_rot = a_rot
 
         z_offset = np.array([0, 0, self.model_bbox_size[1][2]])
 
@@ -275,9 +320,9 @@ class AToBEnv(MultiObjectYCB):
             [root2move_goal_a.p + z_offset * 2, a_rot])
         move_goal_a = np.concatenate([root2move_goal_a.p, a_rot])
         move_goal_above_b = np.concatenate(
-            [root2move_goal_b.p + z_offset * 4, b_rot])
+            [root2move_goal_b.p + z_offset * 2, b_rot])
         move_goal_on_b = np.concatenate(
-            [root2move_goal_b.p + 2 * z_offset, b_rot])
+            [root2move_goal_b.p + z_offset, b_rot])
 
         seq = [
             Action(ActionType.MOVE_TO, goal=move_goal_above_a),
