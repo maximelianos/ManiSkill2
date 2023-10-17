@@ -68,6 +68,10 @@ class MultiObjectYCB(StationaryManipulationEnv):
         self._check_assets()
         super().__init__(**kwargs)
 
+    @property
+    def _get_n_objs(self):
+        return len(self.model_ids)
+
     def _check_assets(self):
         models_dir = self.asset_root / "models"
         for model_id in tuple([id for tup in self.model_ids for id in tup]):
@@ -171,7 +175,10 @@ class MultiObjectYCB(StationaryManipulationEnv):
         return PickSingleYCBEnv._settle(self, t)
 
     def _initialize_actors(self):
-        for j, obj in enumerate(self.objs):
+        self._radial_obj_placement(self.objs)
+
+    def _radial_obj_placement(self, objs):
+        for j, obj in enumerate(objs):
             # The object will fall from a certain height
             xy = self._episode_rng.uniform(-0.1, 0.1, [2])
             z = self._get_init_z(j)
@@ -362,3 +369,109 @@ class AToBEnv(MultiObjectYCB):
     def compute_dense_reward(self, info, **kwargs):
         logger.warning("Did not implement dense reward.")
         return 0
+
+
+@register_env("AToBCluttered-v0", max_episode_steps=1000)
+class AToBClutteredEnv(AToBEnv):
+    def __init__(
+        self, *args,
+        clutter_model_ids: Tuple[Tuple[str]] = (
+            ("012_strawberry",), ("077_rubiks_cube",), ("010_potted_meat_can",)
+            ),
+        **kwargs,
+    ):
+        self.clutter_model_ids = clutter_model_ids
+
+        self.clutter_model_id_per_obj = [m[0] for m in clutter_model_ids]
+
+        self.clutter_model_scales = [
+            None for _ in range(len(clutter_model_ids))]
+        self.clutter_model_bbox_size = [
+            None for _ in range(len(clutter_model_ids))]
+
+        super().__init__(*args, **kwargs)
+
+        self._check_clutter_assets()
+
+
+    def _check_clutter_assets(self):
+        models_dir = self.asset_root / "models"
+        for model_id in tuple([id for tup in self.clutter_model_ids
+                               for id in tup]):
+            model_dir = models_dir / model_id
+            if not model_dir.exists():
+                raise FileNotFoundError(
+                    f"{model_dir} is not found."
+                    "Please download (ManiSkill2) YCB models:"
+                    "`python -m mani_skill2.utils.download_asset ycb`."
+                )
+
+            collision_file = model_dir / "collision.obj"
+            if not collision_file.exists():
+                raise FileNotFoundError(
+                    "convex.obj has been renamed to collision.obj. "
+                    "Please re-download YCB models."
+                )
+
+    def reset(self, seed=None, reconfigure=False, model_ids=None,
+              model_scales=None, clutter_model_ids=None,
+              clutter_model_scales=None):
+        self.set_episode_rng(seed)
+        _reconfigure = self._set_models(
+            model_ids, model_scales, clutter_model_ids, clutter_model_scales)
+        reconfigure = _reconfigure or reconfigure
+        return StationaryManipulationEnv.reset(
+            self, seed=self._episode_seed, reconfigure=reconfigure)
+
+    def _set_models(self, model_ids, model_scales, clutter_model_ids,
+                    clutter_model_scales):
+        """Set the model ids and scale. If not provided, choose randomly."""
+        reconfigure = super()._set_models(model_ids, model_scales)
+
+        if clutter_model_ids is None:
+            clutter_model_ids = (None for _ in range(
+                len(self.clutter_model_ids)))
+        if clutter_model_scales is None:
+            clutter_model_scales = (
+                None for _ in range(len(self.clutter_model_ids)))
+
+        for j, (model_id, model_scale) in enumerate(zip(clutter_model_ids,
+                                                        clutter_model_scales)):
+            if model_id is None:
+                model_id = random_choice(
+                    self.clutter_model_ids[j], self._episode_rng)
+            if model_id != self.clutter_model_id_per_obj[j]:
+                self.clutter_model_id_per_obj[j] = model_id
+                reconfigure = True
+
+            if model_scale is None:
+                obj_model_scales = self.model_db[
+                    self.clutter_model_id_per_obj[j]].get("scales")
+                if obj_model_scales is None:
+                    model_scale = 1.0
+                else:
+                    model_scale = random_choice(obj_model_scales,
+                                                self._episode_rng)
+            if model_scale != self.clutter_model_scales[j]:
+                self.clutter_model_scales[j] = model_scale
+                reconfigure = True
+
+            model_info = self.model_db[self.clutter_model_id_per_obj[j]]
+            if "bbox" in model_info:
+                bbox = model_info["bbox"]
+                bbox_size = np.array(bbox["max"]) - np.array(bbox["min"])
+                self.clutter_model_bbox_size[j] = bbox_size * model_scale
+            else:
+                self.clutter_model_bbox_size[j] = None
+
+        return reconfigure
+    
+    def _add_clutter(self):
+        ...
+
+    def _initialize_actors(self):
+        print(self.objs)
+        self._radial_obj_placement(self.objs)
+
+
+        self._add_clutter()
