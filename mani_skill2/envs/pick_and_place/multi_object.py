@@ -19,6 +19,7 @@ from mani_skill2.utils.sapien_utils import check_actor_static, vectorize_pose, s
 
 from .base_env import StationaryManipulationEnv
 from .pick_single import PickSingleYCBEnv, build_actor_ycb, random_choice
+from .stack_cube import UniformSampler
 
 
 class MultiObjectYCB(StationaryManipulationEnv):
@@ -175,9 +176,9 @@ class MultiObjectYCB(StationaryManipulationEnv):
         return PickSingleYCBEnv._settle(self, t)
 
     def _initialize_actors(self):
-        self._radial_obj_placement(self.objs)
+        self._random_object_placement(self.objs)
 
-    def _radial_obj_placement(self, objs):
+    def _random_object_placement(self, objs):
         for j, obj in enumerate(objs):
             # The object will fall from a certain height
             xy = self._episode_rng.uniform(-0.1, 0.1, [2])
@@ -249,10 +250,12 @@ class AToBEnv(MultiObjectYCB):
         self.goal_tresh = goal_tresh
 
     def _initialize_actors(self):
-        # radial object placement
+        self._radial_obj_placement(self.objs)
+
+    def _radial_obj_placement(self, objs):
         x_prev, y_prev = -0.1, -0.1
 
-        for j, obj in enumerate(self.objs):
+        for j, obj in enumerate(objs):
             # The object will fall from a certain height
             angle = self._episode_rng.uniform(1/8 * np.pi, 7/8 * np.pi)
             radius = 0.15
@@ -375,103 +378,35 @@ class AToBEnv(MultiObjectYCB):
 class AToBClutteredEnv(AToBEnv):
     def __init__(
         self, *args,
+        model_ids: Tuple[Tuple[str]] = (("014_lemon",), ("024_bowl",)),
         clutter_model_ids: Tuple[Tuple[str]] = (
             ("012_strawberry",), ("077_rubiks_cube",), ("010_potted_meat_can",)
-            ),
+        ),
         **kwargs,
     ):
-        self.clutter_model_ids = clutter_model_ids
+        self.clutter_start_idx = len(model_ids)
 
-        self.clutter_model_id_per_obj = [m[0] for m in clutter_model_ids]
+        model_ids = tuple(list(model_ids) + list(clutter_model_ids))
 
-        self.clutter_model_scales = [
-            None for _ in range(len(clutter_model_ids))]
-        self.clutter_model_bbox_size = [
-            None for _ in range(len(clutter_model_ids))]
+        super().__init__(*args, model_ids=model_ids, **kwargs)
 
-        super().__init__(*args, **kwargs)
+    def _random_clutter_placement(self, objs, obj_idx_offset):
+        for j, obj in enumerate(objs):
+            idx = j + obj_idx_offset
+            xy = self._episode_rng.uniform(-0.1, 0.1, [2])
+            region = [[-0.1, -0.2], [0.1, 0.2]]
+            sampler = UniformSampler(region, self._episode_rng)
+            radius = np.linalg.norm(self.model_bbox_size[idx][:2]) + 0.001
+            obj_xy = xy + sampler.sample(radius, 100)
 
-        self._check_clutter_assets()
+            obj_quat = euler2quat(0, 0, self._episode_rng.uniform(0, 2 * np.pi))
+            z = self.model_bbox_size[idx][2]
+            obj_pose = sapien.Pose([obj_xy[0], obj_xy[1], z], obj_quat)
 
-
-    def _check_clutter_assets(self):
-        models_dir = self.asset_root / "models"
-        for model_id in tuple([id for tup in self.clutter_model_ids
-                               for id in tup]):
-            model_dir = models_dir / model_id
-            if not model_dir.exists():
-                raise FileNotFoundError(
-                    f"{model_dir} is not found."
-                    "Please download (ManiSkill2) YCB models:"
-                    "`python -m mani_skill2.utils.download_asset ycb`."
-                )
-
-            collision_file = model_dir / "collision.obj"
-            if not collision_file.exists():
-                raise FileNotFoundError(
-                    "convex.obj has been renamed to collision.obj. "
-                    "Please re-download YCB models."
-                )
-
-    def reset(self, seed=None, reconfigure=False, model_ids=None,
-              model_scales=None, clutter_model_ids=None,
-              clutter_model_scales=None):
-        self.set_episode_rng(seed)
-        _reconfigure = self._set_models(
-            model_ids, model_scales, clutter_model_ids, clutter_model_scales)
-        reconfigure = _reconfigure or reconfigure
-        return StationaryManipulationEnv.reset(
-            self, seed=self._episode_seed, reconfigure=reconfigure)
-
-    def _set_models(self, model_ids, model_scales, clutter_model_ids,
-                    clutter_model_scales):
-        """Set the model ids and scale. If not provided, choose randomly."""
-        reconfigure = super()._set_models(model_ids, model_scales)
-
-        if clutter_model_ids is None:
-            clutter_model_ids = (None for _ in range(
-                len(self.clutter_model_ids)))
-        if clutter_model_scales is None:
-            clutter_model_scales = (
-                None for _ in range(len(self.clutter_model_ids)))
-
-        for j, (model_id, model_scale) in enumerate(zip(clutter_model_ids,
-                                                        clutter_model_scales)):
-            if model_id is None:
-                model_id = random_choice(
-                    self.clutter_model_ids[j], self._episode_rng)
-            if model_id != self.clutter_model_id_per_obj[j]:
-                self.clutter_model_id_per_obj[j] = model_id
-                reconfigure = True
-
-            if model_scale is None:
-                obj_model_scales = self.model_db[
-                    self.clutter_model_id_per_obj[j]].get("scales")
-                if obj_model_scales is None:
-                    model_scale = 1.0
-                else:
-                    model_scale = random_choice(obj_model_scales,
-                                                self._episode_rng)
-            if model_scale != self.clutter_model_scales[j]:
-                self.clutter_model_scales[j] = model_scale
-                reconfigure = True
-
-            model_info = self.model_db[self.clutter_model_id_per_obj[j]]
-            if "bbox" in model_info:
-                bbox = model_info["bbox"]
-                bbox_size = np.array(bbox["max"]) - np.array(bbox["min"])
-                self.clutter_model_bbox_size[j] = bbox_size * model_scale
-            else:
-                self.clutter_model_bbox_size[j] = None
-
-        return reconfigure
-    
-    def _add_clutter(self):
-        ...
+            obj.set_pose(obj_pose)
 
     def _initialize_actors(self):
-        print(self.objs)
-        self._radial_obj_placement(self.objs)
+        self._radial_obj_placement(self.objs[:self.clutter_start_idx])
 
-
-        self._add_clutter()
+        self._random_clutter_placement(self.objs[self.clutter_start_idx:],
+                                       obj_idx_offset=self.clutter_start_idx)
