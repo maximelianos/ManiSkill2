@@ -380,30 +380,57 @@ class AToBClutteredEnv(AToBEnv):
         self, *args,
         model_ids: Tuple[Tuple[str]] = (("014_lemon",), ("024_bowl",)),
         clutter_model_ids: Tuple[Tuple[str]] = (
-            ("012_strawberry",), ("077_rubiks_cube",), ("010_potted_meat_can",)
+            ("012_strawberry",), ("077_rubiks_cube",), ("007_tuna_fish_can",)
         ),
+        n_placement_attempts=10,
         **kwargs,
     ):
         self.clutter_start_idx = len(model_ids)
+        self.n_placement_attempts = n_placement_attempts
 
         model_ids = tuple(list(model_ids) + list(clutter_model_ids))
 
         super().__init__(*args, model_ids=model_ids, **kwargs)
 
-    def _random_clutter_placement(self, objs, obj_idx_offset):
+    def _random_clutter_placement(self, objs, obj_idx_offset,
+                                  avoid_collision=True,
+                                  dist_scale=1.1, dist_const=0.05):
         for j, obj in enumerate(objs):
-            idx = j + obj_idx_offset
-            xy = self._episode_rng.uniform(-0.1, 0.1, [2])
-            region = [[-0.1, -0.2], [0.1, 0.2]]
-            sampler = UniformSampler(region, self._episode_rng)
-            radius = np.linalg.norm(self.model_bbox_size[idx][:2]) + 0.001
-            obj_xy = xy + sampler.sample(radius, 100)
+            success = False
+            for _ in range(self.n_placement_attempts):
+                idx = j + obj_idx_offset
+                xy = self._episode_rng.uniform(-0.35, 0.35, [2])
 
-            obj_quat = euler2quat(0, 0, self._episode_rng.uniform(0, 2 * np.pi))
-            z = self.model_bbox_size[idx][2]
-            obj_pose = sapien.Pose([obj_xy[0], obj_xy[1], z], obj_quat)
+                obj_quat = euler2quat(0, 0, self._episode_rng.uniform(0, 2 * np.pi))
+                z =  self._get_init_z(idx) - 0.05
+                obj_pose = sapien.Pose([xy[0], xy[1], z], obj_quat)
+
+                collision = self._check_placement_collision(obj_pose, idx,
+                                                            dist_scale,
+                                                            dist_const)
+
+                if not avoid_collision or not collision:
+                    success = True
+            if not success:
+                logger.warning(f"Failed to place object {obj} in "
+                               f"{self.n_placement_attempts} attempts.")
 
             obj.set_pose(obj_pose)
+
+    def _check_placement_collision(self, pose, obj_idx, dist_scale, dist_const):
+        for i in range(obj_idx):
+            # print(i, obj_idx, self.objs[i].name, self.objs[obj_idx].name)
+            other_pose = self.objs[i].pose
+            offset = pose.p - other_pose.p
+            bbox_size = self.model_bbox_size[i] + self.model_bbox_size[obj_idx]
+            # print(np.abs(offset), bbox_size * dist_scale + dist_const)
+            collision = np.all(np.abs(offset) < (
+                                bbox_size * dist_scale + dist_const))
+
+            if collision:
+                return True
+
+        return False
 
     def _initialize_actors(self):
         self._radial_obj_placement(self.objs[:self.clutter_start_idx])
