@@ -399,11 +399,12 @@ class AToBClutteredEnv(AToBEnv):
             success = False
             for _ in range(self.n_placement_attempts):
                 idx = j + obj_idx_offset
-                xy = self._episode_rng.uniform(-0.35, 0.35, [2])
+                x = self._episode_rng.uniform(-0.4, 0.4, [1])
+                y = self._episode_rng.uniform(-0.6, 0.6, [1])
 
                 obj_quat = euler2quat(0, 0, self._episode_rng.uniform(0, 2 * np.pi))
                 z =  self._get_init_z(idx) - 0.05
-                obj_pose = sapien.Pose([xy[0], xy[1], z], obj_quat)
+                obj_pose = sapien.Pose([x, y, z], obj_quat)
 
                 collision = self._check_placement_collision(obj_pose, idx,
                                                             dist_scale,
