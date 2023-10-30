@@ -327,6 +327,7 @@ class TurnFaucetEnv(TurnFaucetBaseEnv):
         if self._obs_mode in ["state", "state_dict", "state_dict+image"]:
             angle_dist = self.target_angle - self.current_angle
             obs["angle_dist"] = angle_dist
+            obs["target_pose"] = vectorize_pose(self.target_link.pose)
         return obs
 
     @property
