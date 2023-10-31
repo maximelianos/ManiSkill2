@@ -10,7 +10,7 @@ import os
 from copy import deepcopy
 from typing import Union
 
-import gym
+import gymnasium as gym
 import h5py
 import numpy as np
 import sapien.core as sapien
@@ -161,13 +161,13 @@ def from_pd_joint_pos_to_ee(
             output_action_dict["arm"] = arm_action
             output_action = controller.from_action_dict(output_action_dict)
 
-            obs, reward, done, info = env.step(output_action)
+            obs, reward, done, _,  info = env.step(output_action)
             obs.action = torch.from_numpy(output_action)
             obs.feedback = torch.Tensor([1])
             if replay_memory is not None:
                 replay_memory.add_observation(obs)
             if render:
-                env.render()
+                env.render_human()
 
             if flag:
                 break
@@ -235,13 +235,13 @@ def from_pd_joint_pos(
             output_action_dict["arm"] = arm_action
 
             output_action = controller.from_action_dict(output_action_dict)
-            obs, reward, done, info = env.step(output_action)
+            obs, reward, done, _, info = env.step(output_action)
             obs.action = torch.from_numpy(output_action)
             obs.feedback = torch.Tensor([1])
             if replay_memory is not None:
                 replay_memory.add_observation(obs)
             if render:
-                env.render()
+                env.render_human()
 
             if flag:
                 break
@@ -288,15 +288,15 @@ def from_pd_joint_delta_pos(
 
         output_action_dict["arm"] = arm_action
         output_action = controller.from_action_dict(output_action_dict)
-        _, _, _, info = env.step(output_action)
+        _, _, _, _, info = env.step(output_action)
 
         if render:
-            env.render()
+            env.render_human()
 
     return info
 
 
-def parse_args():
+def parse_args(args=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("--traj-path", type=str, required=True)
     parser.add_argument("-o", "--obs-mode", type=str, help="target observation mode")
@@ -332,7 +332,13 @@ def parse_args():
         default=None,
         help="background scene to use",
     )
-    return parser.parse_args()
+    parser.add_argument(
+        "--count",
+        type=int,
+        default=None,
+        help="number of demonstrations to replay before exiting. By default will replay all demonstrations",
+    )
+    return parser.parse_args(args)
 
 
 def _main(args, proc_id: int = 0, num_procs=1, pbar=None):
@@ -365,6 +371,9 @@ def _main(args, proc_id: int = 0, num_procs=1, pbar=None):
     if target_control_mode is not None:
         env_kwargs["control_mode"] = target_control_mode
     env_kwargs["bg_name"] = args.bg_name
+    env_kwargs[
+        "render_mode"
+    ] = "rgb_array"  # note this only affects the videos saved as RecordEpisode wrapper calls env.render
     env = gym.make(env_id, **env_kwargs)
     if pbar is not None:
         pbar.set_postfix(
@@ -396,7 +405,7 @@ def _main(args, proc_id: int = 0, num_procs=1, pbar=None):
     else:
         output_h5_path = None
 
-    episodes = json_data["episodes"]
+    episodes = json_data["episodes"][: args.count]
     n_ep = len(episodes)
     inds = np.arange(n_ep)
     inds = np.array_split(inds, num_procs)[proc_id]
@@ -418,16 +427,17 @@ def _main(args, proc_id: int = 0, num_procs=1, pbar=None):
             assert reset_kwargs["seed"] == ep["episode_seed"]
         else:
             reset_kwargs["seed"] = ep["episode_seed"]
+        seed = reset_kwargs.pop("seed")
 
         ori_control_mode = ep["control_mode"]
 
         for _ in range(args.max_retry + 1):
-            env.reset(**reset_kwargs)
+            env.reset(seed=seed, options=reset_kwargs)
             if ori_env is not None:
-                ori_env.reset(**reset_kwargs)
+                ori_env.reset(seed=seed, options=reset_kwargs)
 
             if args.vis:
-                env.render()
+                env.render_human()
 
             # Original actions to replay
             ori_actions = ori_h5_file[traj_id]["actions"][:]
@@ -446,9 +456,9 @@ def _main(args, proc_id: int = 0, num_procs=1, pbar=None):
                 for t, a in enumerate(ori_actions):
                     if pbar is not None:
                         pbar.update()
-                    _, _, _, info = env.step(a)
+                    _, _, _, _, info = env.step(a)
                     if args.vis:
-                        env.render()
+                        env.render_human()
                     if args.use_env_states:
                         env.set_state(ori_env_states[t])
 
@@ -505,9 +515,7 @@ def _main(args, proc_id: int = 0, num_procs=1, pbar=None):
     return output_h5_path
 
 
-def main():
-    args = parse_args()
-
+def main(args):
     if args.num_procs > 1:
         pool = mp.Pool(args.num_procs)
         proc_args = [(deepcopy(args), i, args.num_procs) for i in range(args.num_procs)]
@@ -530,4 +538,4 @@ def main():
 if __name__ == "__main__":
     # spawn is needed due to warp init issue
     mp.set_start_method("spawn")
-    main()
+    main(parse_args())
