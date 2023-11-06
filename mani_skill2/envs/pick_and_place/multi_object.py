@@ -252,13 +252,14 @@ class AToBEnv(MultiObjectYCB):
     def _initialize_actors(self):
         self._radial_obj_placement(self.objs)
 
-    def _radial_obj_placement(self, objs):
-        x_prev, y_prev = -0.1, -0.1
+    def _radial_obj_placement(self, objs, iterative=False):
+        x_prev, y_prev = 0.0, 0.0
+        angle_min, angle_max = 1/4 * np.pi, 3/4 * np.pi
 
         for j, obj in enumerate(objs):
             # The object will fall from a certain height
-            angle = self._episode_rng.uniform(1/8 * np.pi, 7/8 * np.pi)
-            radius = 0.15
+            angle = self._episode_rng.uniform(angle_min, angle_max)
+            radius = self._episode_rng.uniform(0.1, 0.3)
             x = radius * np.cos(angle)
             y = radius * np.sin(angle)
             x += x_prev
@@ -267,12 +268,16 @@ class AToBEnv(MultiObjectYCB):
             p = np.hstack([x, y, z])
             q = [1, 0, 0, 0]
 
-            x_prev = x
-            y_prev = y
+            if iterative:
+                x_prev = x
+                y_prev = y
+            else:
+                angle_min += np.pi / 2
+                angle_max += np.pi / 2
 
             # Rotate along z-axis
             if self.obj_init_rot_z:
-                ori = self._episode_rng.uniform(0, 2 * np.pi)
+                ori = self._episode_rng.uniform(0, 1 / 2 * np.pi)
                 q = euler2quat(0, 0, ori)
 
             # Rotate along a random axis by a small angle
@@ -317,11 +322,15 @@ class AToBEnv(MultiObjectYCB):
 
         a_quat = root2move_goal_a.q
         a_euler = quat2euler(a_quat)
-        a_angle_z = (a_euler[2] + 3/4 * pi) % pi - 1/2 * pi
+        a_angle_z = a_euler[2] + 1/4 * pi  # (a_euler[2] + 3/4 * pi) % pi - 1/2 * pi
         a_euler = (-pi, 0, a_angle_z)  # rotate 180 degrees around x axis
         a_rot = euler2quat(*a_euler)
 
-        b_rot = a_rot
+        b_quat = root2move_goal_b.q
+        b_euler = quat2euler(b_quat)
+        b_rot = b_euler[2]
+        b_euler = (-pi, 0, b_rot)
+        b_rot = euler2quat(*b_euler)
 
         z_offset = np.array([0, 0, self.model_bbox_size[1][2]])
 
