@@ -176,6 +176,7 @@ class FillEnv(MPMBaseEnv):
         return OrderedDict(
             tcp_pose=vectorize_pose(self.grasp_site.get_pose()),
             target=np.array([self.beaker_x, self.beaker_y]),
+            beaker_pose=vectorize_pose(self.target_beaker.pose),
         )
 
     def evaluate(self, **kwargs):

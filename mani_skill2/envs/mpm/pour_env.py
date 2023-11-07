@@ -330,6 +330,7 @@ class PourEnv(MPMBaseEnv):
         return OrderedDict(
             tcp_pose=vectorize_pose(self.grasp_site.get_pose()),
             target=np.array([self.h1]),
+            beaker_pose=vectorize_pose(self.target_beaker.pose),
         )
 
     def in_beaker_num(self):

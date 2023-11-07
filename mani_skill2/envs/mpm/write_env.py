@@ -65,6 +65,7 @@ class WriteEnv(MPMBaseEnv):
         return OrderedDict(
             tcp_pose=vectorize_pose(self.end_effector.pose),
             goal=self.goal_image_display_numpy,
+            wall0_pose=vectorize_pose(self.walls[0].pose),
         )
 
     def _initialize_mpm(self):
