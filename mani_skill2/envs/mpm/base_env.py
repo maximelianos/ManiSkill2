@@ -54,7 +54,7 @@ def task(meshes):
 
 class MPMBaseEnv(BaseEnv):
     # fmt: off
-    SUPPORTED_OBS_MODES = ("none", "image")
+    SUPPORTED_OBS_MODES = ("none", "image", "state_dict+image")
     # fmt: on
 
     def __init__(
@@ -395,7 +395,7 @@ class MPMBaseEnv(BaseEnv):
     def get_obs(self):
         mpm_state = self.get_mpm_state()
 
-        if self._obs_mode == "particles":
+        if self._obs_mode in ["particles", "state_dict+images"]:
             obs = OrderedDict(
                 particles=mpm_state,
                 agent=self._get_obs_agent(),
