@@ -390,7 +390,7 @@ class OpenCabinetEnv(MS1BaseEnv):
     # -------------------------------------------------------------------------- #
     def _get_obs_extra(self) -> OrderedDict:
         obs = super()._get_obs_extra()
-        if self._obs_mode not in ["state", "state_dict", "state_dict+image"]:
+        if self._obs_mode in ["state", "state_dict", "state_dict+image"]:
             obs.update(
                 target_angle_diff=self.target_angle_diff,
                 target_joint_axis=self.target_joint_axis,

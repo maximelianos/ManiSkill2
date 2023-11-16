@@ -62,7 +62,10 @@ class BaseAgent:
 
         # URDF
         self.urdf_path = self.config.urdf_path
-        self.srdf_path = self.config.srdf_path
+        if hasattr(self.config, "srdf_path"):
+            self.srdf_path = self.config.srdf_path
+        else:
+            self.srdf_path = None
         self.fix_root_link = fix_root_link
         self.urdf_config = self.config.urdf_config
 
