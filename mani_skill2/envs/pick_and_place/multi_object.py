@@ -123,12 +123,16 @@ class MultiObjectYCB(StationaryManipulationEnv):
 
         self.objs = tuple(objs)
 
-    def reset(self, seed=None, reconfigure=False, model_ids=None,
+    def reset(self, seed=None, options=None, model_ids=None,
               model_scales=None):
+        if options is None:
+            options = dict()
+        reconfigure = options.get("reconfigure", False)
         self.set_episode_rng(seed)
         _reconfigure = self._set_models(model_ids, model_scales)
         reconfigure = _reconfigure or reconfigure
-        return super().reset(seed=self._episode_seed, reconfigure=reconfigure)
+        options["reconfigure"] = reconfigure
+        return super().reset(seed=self._episode_seed, options=options)
 
     def _set_models(self, model_ids, model_scales):
         """Set the model ids and scale. If not provided, choose randomly."""
