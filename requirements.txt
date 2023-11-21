@@ -16,5 +16,5 @@ transforms3d
 opencv-python
 imageio
 imageio[ffmpeg]
-trimesh
+trimesh>=4.0.4  # needed for seeded sample_surface
 rtree
