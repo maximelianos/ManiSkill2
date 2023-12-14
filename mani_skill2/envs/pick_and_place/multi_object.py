@@ -314,7 +314,7 @@ class AToBEnv(MultiObjectYCB):
             if lin_vel > 1e-3 or ang_vel > 1e-2:
                 self._settle(0.5)
 
-    def _get_solution_sequence(self):
+    def get_solution_sequence(self):
         goal_a2w = copy(self.objs[0].pose)
         goal_b2w = copy(self.objs[1].pose)
 

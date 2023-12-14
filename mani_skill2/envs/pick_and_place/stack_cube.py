@@ -111,7 +111,7 @@ class StackCubeEnv(StationaryManipulationEnv):
             )
         return obs
 
-    def _get_solution_sequence(self):
+    def get_solution_sequence(self):
         goal_a2w = copy(self.cubeA.pose)
         goal_b2w = copy(self.cubeB.pose)
 

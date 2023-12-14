@@ -816,5 +816,5 @@ class BaseEnv(gym.Env):
         scene_pcd = scene_mesh.sample(num_points)
         return scene_pcd
 
-    def _get_solution_sequence(self):
+    def get_solution_sequence(self):
         raise NotImplementedError
