@@ -350,10 +350,13 @@ class AToBEnv(MultiObjectYCB):
         seq = [
             Action(ActionType.MOVE_TO, goal=move_goal_above_a),
             Action(ActionType.MOVE_TO, goal=move_goal_a),
+            Action(ActionType.NOOP, goal=5),
             Action(ActionType.CLOSE_GRIPPER),
+            Action(ActionType.NOOP, goal=5),
             Action(ActionType.MOVE_TO, goal=move_goal_above_a),
             Action(ActionType.MOVE_TO, goal=move_goal_above_b),
             Action(ActionType.MOVE_TO, goal=move_goal_on_b),
+            Action(ActionType.NOOP, goal=5),
             Action(ActionType.OPEN_GRIPPER),
         ]
 

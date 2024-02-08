@@ -36,6 +36,7 @@ class ActionType(Enum):
     MOVE_TO = 0
     CLOSE_GRIPPER = 1
     OPEN_GRIPPER = 2
+    NOOP = 3
 
 
 class Action():
