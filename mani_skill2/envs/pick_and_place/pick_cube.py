@@ -190,7 +190,7 @@ class LiftCubeEnv(PickCubeEnv):
 
 
 @register_env("PushCube-v0", max_episode_steps=500)
-class PushCubeEnv(LiftCubeEnv):
+class PushCubeEnv(PickCubeEnv):
     "Push the cube to the goal position."
     goal_thresh = 0.05
 
@@ -241,10 +241,14 @@ class PushCubeEnv(LiftCubeEnv):
 
         ab_diff = root2move_goal_b.p - root2move_goal_a.p
         ab_dist = np.linalg.norm(ab_diff)
-        xy_offset = - ab_diff / ab_dist * 0.05 - np.array([0, 0.5  * self.cube_half_size[1], 0])
+        xy_dir = - ab_diff / ab_dist
+        side_offset = - np.array([0, 0.5  * self.cube_half_size[1], 0])
+        xy_offset = xy_dir* 0.035 + side_offset
         z_offset = np.array([0, 0, 4 * self.cube_half_size[2]])
 
-        goal_offset = 0.5 * self.cube_half_size
+        goal_offset = np.array(
+            [0, 0, 0.5 * self.cube_half_size[2]]
+            )
 
         # Transform to np.ndarray
         move_goal_above_a = np.concatenate(
@@ -253,7 +257,7 @@ class PushCubeEnv(LiftCubeEnv):
         move_goal_next_to_a = np.concatenate(
             [root2move_goal_a.p + xy_offset, a_rot])
         move_goal_b = np.concatenate(
-            [root2move_goal_b.p + goal_offset, a_rot])
+            [root2move_goal_b.p + xy_dir * 0.02, a_rot])
 
         seq = [
             Action(ActionType.MOVE_TO, goal=move_goal_above_a),
