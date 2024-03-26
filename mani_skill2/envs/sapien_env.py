@@ -40,9 +40,10 @@ class ActionType(Enum):
 
 
 class Action():
-    def __init__(self, action_type, goal=None) -> None:
+    def __init__(self, action_type, goal=None, with_screw=True) -> None:
         self.action_type = action_type
         self.goal = goal
+        self.with_screw = with_screw
 
 
 class BaseEnv(gym.Env):

@@ -37,10 +37,8 @@ class PickSingleEnv(StationaryManipulationEnv):
             asset_root = self.DEFAULT_ASSET_ROOT
         self.asset_root = Path(format_path(asset_root))
 
-        print(model_json)
         if model_json is None:
             model_json = self.DEFAULT_MODEL_JSON
-            print(model_json)
         # NOTE(jigu): absolute path will overwrite asset_root
         model_json = self.asset_root / format_path(model_json)
 

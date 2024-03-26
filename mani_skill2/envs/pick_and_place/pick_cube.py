@@ -1,9 +1,14 @@
 from collections import OrderedDict
+from copy import copy
 
 import numpy as np
 import sapien.core as sapien
 from sapien.core import Pose
-from transforms3d.euler import euler2quat
+from math import pi
+from transforms3d.euler import euler2quat, quat2euler
+from transforms3d.quaternions import axangle2quat, qmult
+
+from mani_skill2.envs.sapien_env import Action, ActionType
 
 from mani_skill2.utils.registration import register_env
 from mani_skill2.utils.sapien_utils import vectorize_pose
@@ -182,3 +187,83 @@ class LiftCubeEnv(PickCubeEnv):
 
     def compute_normalized_dense_reward(self, **kwargs):
         return self.compute_dense_reward(**kwargs) / 2.25
+
+
+@register_env("PushCube-v0", max_episode_steps=500)
+class PushCubeEnv(LiftCubeEnv):
+    "Push the cube to the goal position."
+    goal_thresh = 0.05
+
+    def _initialize_actors(self):
+        # Y: left-right, X: front-back
+        x = self._episode_rng.uniform(-0.3, -0.1)
+        y = self._episode_rng.uniform(-0.2, -0.1)
+        xyz = np.hstack([x, y, self.cube_half_size[2]])
+        q = [0.924, 0, 0, 0.383]
+        self.obj.set_pose(Pose(xyz, q))
+
+    def _initialize_task(self):
+        self.goal_pos = self.obj.pose.p + [0.2, 0.2, 0]
+        self.goal_site.set_pose(Pose(self.goal_pos))
+
+    def _get_obs_extra(self) -> OrderedDict:
+        obs = OrderedDict(
+            tcp_pose=vectorize_pose(self.tcp.pose),
+        )
+        if self._obs_mode in ["state", "state_dict", "state_dict+image"]:
+            obs.update(
+                obj_pose=vectorize_pose(self.obj.pose),
+                goal_pose=vectorize_pose(self.goal_site.pose),
+            )
+        return obs
+
+    def get_solution_sequence(self):
+        goal_a2w = copy(self.obj.pose)
+        goal_b2w = copy(self.goal_site.pose)
+
+        root2w = self.agent.robot.get_root_pose()
+        w2root = root2w.inv()
+
+        root2move_goal_a = w2root.transform(goal_a2w)
+        root2move_goal_b = w2root.transform(goal_b2w)
+
+        a_quat = root2move_goal_a.q
+        a_euler = quat2euler(a_quat)
+        a_angle_z = a_euler[2]
+        a_euler = (-pi, 0, a_angle_z)  # rotate 180 degrees around x axis
+        a_rot = euler2quat(*a_euler)
+
+        b_quat = root2move_goal_b.q
+        b_euler = quat2euler(b_quat)
+        b_rot = b_euler[2]
+        b_euler = (-pi, 0, b_rot)
+        b_rot = euler2quat(*b_euler)
+
+        ab_diff = root2move_goal_b.p - root2move_goal_a.p
+        ab_dist = np.linalg.norm(ab_diff)
+        xy_offset = - ab_diff / ab_dist * 0.05 - np.array([0, 0.5  * self.cube_half_size[1], 0])
+        z_offset = np.array([0, 0, 4 * self.cube_half_size[2]])
+
+        goal_offset = 0.5 * self.cube_half_size
+
+        # Transform to np.ndarray
+        move_goal_above_a = np.concatenate(
+            [root2move_goal_a.p + xy_offset + z_offset, a_rot]
+        )
+        move_goal_next_to_a = np.concatenate(
+            [root2move_goal_a.p + xy_offset, a_rot])
+        move_goal_b = np.concatenate(
+            [root2move_goal_b.p + goal_offset, a_rot])
+
+        seq = [
+            Action(ActionType.MOVE_TO, goal=move_goal_above_a),
+            Action(ActionType.NOOP, goal=10),
+            Action(ActionType.CLOSE_GRIPPER),
+            Action(ActionType.NOOP, goal=10),
+            Action(ActionType.MOVE_TO, goal=move_goal_next_to_a),
+            Action(ActionType.NOOP, goal=10),
+            Action(ActionType.MOVE_TO, goal=move_goal_b, with_screw=True),
+            Action(ActionType.NOOP, goal=30),
+        ]
+
+        return seq

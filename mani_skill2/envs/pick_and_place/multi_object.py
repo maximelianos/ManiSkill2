@@ -263,7 +263,7 @@ class AToBEnv(MultiObjectYCB):
         for j, obj in enumerate(objs):
             # The object will fall from a certain height
             angle = self._episode_rng.uniform(angle_min, angle_max)
-            radius = self._episode_rng.uniform(0.1, 0.3)
+            radius = self._episode_rng.uniform(0.15, 0.20)
             x = radius * np.cos(angle)
             y = radius * np.sin(angle)
             x += x_prev
@@ -373,7 +373,7 @@ class AToBEnv(MultiObjectYCB):
     def evaluate(self, **kwargs):
         is_obj_placed = self._check_objA_on_objB()
         # sometimes the static check gives false negatives, so ignore for now
-        is_objA_static = True  # check_actor_static(self.objs[0])
+        is_objA_static = check_actor_static(self.objs[0])
         is_objA_grasped = self.agent.check_grasp(self.objs[0])
         success = is_obj_placed and is_objA_static and (not is_objA_grasped)
 
