@@ -193,14 +193,25 @@ class LiftCubeEnv(PickCubeEnv):
 class PushCubeEnv(PickCubeEnv):
     "Push the cube to the goal position."
     goal_thresh = 0.05
+    clutter_size = np.array([0.1, 0.1, 0.02])
+
+    def _load_actors(self):
+        super()._load_actors()
+        self.clutter = self._build_cube(
+            self.clutter_size,
+            name="clutter",
+            color=(0, 0, 1),
+            )
 
     def _initialize_actors(self):
         # Y: left-right, X: front-back
         x = self._episode_rng.uniform(-0.3, -0.1)
         y = self._episode_rng.uniform(-0.2, -0.1)
         xyz = np.hstack([x, y, self.cube_half_size[2]])
-        q = [0.924, 0, 0, 0.383]
+        q = [1, 0, 0, 0]
         self.obj.set_pose(Pose(xyz, q))
+        xyz_clutter = xyz + np.array([0, 0.2, 0])
+        self.clutter.set_pose(Pose(xyz_clutter, q))
 
     def _initialize_task(self):
         self.goal_pos = self.obj.pose.p + [0.2, 0.2, 0]
@@ -231,7 +242,9 @@ class PushCubeEnv(PickCubeEnv):
         a_euler = quat2euler(a_quat)
         a_angle_z = a_euler[2]
         a_euler = (-pi, 0, a_angle_z)  # rotate 180 degrees around x axis
+        mid_euler = (-pi, 0, a_angle_z + pi/2)
         a_rot = euler2quat(*a_euler)
+        mid_rot = euler2quat(*mid_euler)
 
         b_quat = root2move_goal_b.q
         b_euler = quat2euler(b_quat)
@@ -241,23 +254,28 @@ class PushCubeEnv(PickCubeEnv):
 
         ab_diff = root2move_goal_b.p - root2move_goal_a.p
         ab_dist = np.linalg.norm(ab_diff)
-        xy_dir = - ab_diff / ab_dist
-        side_offset = - np.array([0, 0.5  * self.cube_half_size[1], 0])
-        xy_offset = xy_dir* 0.035 + side_offset
         z_offset = np.array([0, 0, 4 * self.cube_half_size[2]])
-
-        goal_offset = np.array(
-            [0, 0, 0.5 * self.cube_half_size[2]]
-            )
+        
+        x_offset = np.array([-0.04, 0, 0])
+        small_x_offset = np.array([-0.02, 0, 0])
+        y_offset = np.array([0, -0.06, 0])
+        mid_dist = np.array([0.2, 0, 0])
 
         # Transform to np.ndarray
         move_goal_above_a = np.concatenate(
-            [root2move_goal_a.p + xy_offset + z_offset, a_rot]
+            [root2move_goal_a.p + x_offset + z_offset, a_rot]
         )
         move_goal_next_to_a = np.concatenate(
-            [root2move_goal_a.p + xy_offset, a_rot])
+            [root2move_goal_a.p + x_offset, a_rot])
+        move_goal_mid = np.concatenate(
+            [root2move_goal_a.p + mid_dist + small_x_offset, a_rot])
+        movel_goal_backoff = np.concatenate(
+            [root2move_goal_a.p + mid_dist + 1.5*x_offset, a_rot]
+        )
+        move_goal_second_push = np.concatenate(
+            [root2move_goal_a.p + mid_dist + y_offset - 0.5 * small_x_offset, mid_rot])
         move_goal_b = np.concatenate(
-            [root2move_goal_b.p + xy_dir * 0.02, a_rot])
+            [root2move_goal_b.p, mid_rot])
 
         seq = [
             Action(ActionType.MOVE_TO, goal=move_goal_above_a),
@@ -265,6 +283,12 @@ class PushCubeEnv(PickCubeEnv):
             Action(ActionType.CLOSE_GRIPPER),
             Action(ActionType.NOOP, goal=10),
             Action(ActionType.MOVE_TO, goal=move_goal_next_to_a),
+            Action(ActionType.NOOP, goal=10),
+            Action(ActionType.MOVE_TO, goal=move_goal_mid),
+            Action(ActionType.NOOP, goal=10),
+            Action(ActionType.MOVE_TO, goal=movel_goal_backoff),
+            Action(ActionType.NOOP, goal=10),
+            Action(ActionType.MOVE_TO, goal=move_goal_second_push),
             Action(ActionType.NOOP, goal=10),
             Action(ActionType.MOVE_TO, goal=move_goal_b, with_screw=True),
             Action(ActionType.NOOP, goal=30),
