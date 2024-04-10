@@ -225,8 +225,8 @@ class PushCubeEnv(PickCubeEnv):
         )
         if self._obs_mode in ["state", "state_dict", "state_dict+image"]:
             obs.update(
-                obj_pose=vectorize_pose(self.obj.pose),
                 goal_pose=vectorize_pose(self.goal_site.pose),
+                obj_pose=vectorize_pose(self.obj.pose),
             )
         return obs
 
