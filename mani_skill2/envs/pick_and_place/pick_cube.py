@@ -214,7 +214,9 @@ class PushCubeEnv(PickCubeEnv):
         self.clutter.set_pose(Pose(xyz_clutter, q))
 
     def _initialize_task(self):
-        self.goal_pos = self.obj.pose.p + [0.2, 0.2, 0]
+        # TODO: randomize goal_dist_x, too? Or even only x?
+        self.goal_dist_y = self._episode_rng.uniform(0.18, 0.22)
+        self.goal_pos = self.obj.pose.p + [0.2, self.goal_dist_y, 0]
         self.goal_site.set_pose(Pose(self.goal_pos))
 
     def _get_obs_extra(self) -> OrderedDict:
