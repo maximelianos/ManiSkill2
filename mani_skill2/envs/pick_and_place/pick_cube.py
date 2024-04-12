@@ -299,7 +299,7 @@ class PushCubeEnv(PickCubeEnv):
     
 
 @register_env("SlideBlock-v0", max_episode_steps=500)
-class SlideCubeEnv(PushCubeEnv):
+class SlideBlockeEnv(PushCubeEnv):
     "Slide the block to the goal position."
     goal_thresh = 0.05
     block_half_size = np.array([0.02, 0.02, 0.1])
@@ -318,8 +318,8 @@ class SlideCubeEnv(PushCubeEnv):
         self.clutter.set_pose(Pose(xyz_clutter, q))
 
     def _initialize_task(self):
-        self.goal_pose = self.obj.pose.p + [0, 0.2, 0]
-        self.goal_site.set_pose(Pose(self.goal_pose))
+        self.goal_pos = self.obj.pose.p + [0, 0.2, 0]
+        self.goal_site.set_pose(Pose(self.goal_pos))
 
     def get_solution_sequence(self):
         goal_a2w = copy(self.obj.pose)
@@ -337,20 +337,7 @@ class SlideCubeEnv(PushCubeEnv):
         a_euler = (-pi, 0, a_angle_z + pi/2)
         a_rot = euler2quat(*a_euler)
 
-        b_quat = root2move_goal_b.q
-        b_euler = quat2euler(b_quat)
-        b_rot = b_euler[2]
-        b_euler = (-pi, 0, b_rot)
-        b_rot = euler2quat(*b_euler)
-
-        ab_diff = root2move_goal_b.p - root2move_goal_a.p
-        ab_dist = np.linalg.norm(ab_diff)
-        z_offset = np.array([0, 0, 4 * self.cube_half_size[2]])
-        
-        x_offset = np.array([-0.04, 0, 0])
-        small_x_offset = np.array([-0.02, 0, 0])
         y_offset = np.array([0, -0.06, 0])
-        mid_dist = np.array([0.2, 0, 0])
 
         # Transform to np.ndarray
         move_goal_behind_a = np.concatenate(
