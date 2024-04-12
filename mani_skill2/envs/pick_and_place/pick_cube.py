@@ -188,7 +188,6 @@ class LiftCubeEnv(PickCubeEnv):
     def compute_normalized_dense_reward(self, **kwargs):
         return self.compute_dense_reward(**kwargs) / 2.25
 
-
 @register_env("PushCube-v0", max_episode_steps=500)
 class PushCubeEnv(PickCubeEnv):
     "Push the cube to the goal position."
@@ -293,6 +292,79 @@ class PushCubeEnv(PickCubeEnv):
             Action(ActionType.MOVE_TO, goal=move_goal_second_push),
             Action(ActionType.NOOP, goal=10),
             Action(ActionType.MOVE_TO, goal=move_goal_b, with_screw=True),
+            Action(ActionType.NOOP, goal=30),
+        ]
+
+        return seq
+    
+
+@register_env("SlideBlock-v0", max_episode_steps=500)
+class SlideCubeEnv(PushCubeEnv):
+    "Slide the block to the goal position."
+    goal_thresh = 0.05
+    block_half_size = np.array([0.02, 0.02, 0.1])
+    clutter_size = np.array([0.1, 0.1, 0.02])
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def _initialize_actors(self):
+        x = self._episode_rng.uniform(0.1, 0.2)
+        y = self._episode_rng.uniform(-0.2, -0.1)
+        xyz = np.hstack([x, y, self.block_half_size[2]])
+        q = [1, 0, 0, 0]
+        self.obj.set_pose(Pose(xyz, q))
+        xyz_clutter = np.array([0, 0, self.clutter_size[2]])
+        self.clutter.set_pose(Pose(xyz_clutter, q))
+
+    def _initialize_task(self):
+        self.goal_pose = self.obj.pose.p + [0, 0.2, 0]
+        self.goal_site.set_pose(Pose(self.goal_pose))
+
+    def get_solution_sequence(self):
+        goal_a2w = copy(self.obj.pose)
+        goal_b2w = copy(self.goal_site.pose)
+
+        root2w = self.agent.robot.get_root_pose()
+        w2root = root2w.inv()
+
+        root2move_goal_a = w2root.transform(goal_a2w)
+        root2move_goal_b = w2root.transform(goal_b2w)
+
+        a_quat = root2move_goal_a.q
+        a_euler = quat2euler(a_quat)
+        a_angle_z = a_euler[2]
+        a_euler = (-pi, 0, a_angle_z + pi/2)
+        a_rot = euler2quat(*a_euler)
+
+        b_quat = root2move_goal_b.q
+        b_euler = quat2euler(b_quat)
+        b_rot = b_euler[2]
+        b_euler = (-pi, 0, b_rot)
+        b_rot = euler2quat(*b_euler)
+
+        ab_diff = root2move_goal_b.p - root2move_goal_a.p
+        ab_dist = np.linalg.norm(ab_diff)
+        z_offset = np.array([0, 0, 4 * self.cube_half_size[2]])
+        
+        x_offset = np.array([-0.04, 0, 0])
+        small_x_offset = np.array([-0.02, 0, 0])
+        y_offset = np.array([0, -0.06, 0])
+        mid_dist = np.array([0.2, 0, 0])
+
+        # Transform to np.ndarray
+        move_goal_behind_a = np.concatenate(
+            [root2move_goal_a.p + y_offset, a_rot]
+        )
+        move_goal_b = np.concatenate(
+            [root2move_goal_b.p, a_rot])
+
+        seq = [
+            Action(ActionType.MOVE_TO, goal=move_goal_behind_a),
+            Action(ActionType.NOOP, goal=10),
+            Action(ActionType.CLOSE_GRIPPER),
+            Action(ActionType.NOOP, goal=10),
+            Action(ActionType.MOVE_TO, goal=move_goal_b),
             Action(ActionType.NOOP, goal=30),
         ]
 
