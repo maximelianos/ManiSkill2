@@ -302,20 +302,26 @@ class PushCubeEnv(PickCubeEnv):
 class SlideBlockeEnv(PushCubeEnv):
     "Slide the block to the goal position."
     goal_thresh = 0.05
-    block_half_size = np.array([0.02, 0.02, 0.1])
-    clutter_size = np.array([0.1, 0.1, 0.02])
+    block_half_size = np.array([0.04, 0.04, 0.04])
+    clutter_size = np.array([0.02, 0.02, 0.02])
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+    def _load_actors(self):
+        self._add_ground(render=self.bg_name is None)
+        self.obj = self._build_cube(self.block_half_size, color=(1, 0, 0))
+        # self.clutter = self._build_cube(self.clutter_size, color=(0, 0, 1))
+        self.goal_site = self._build_sphere_site(self.goal_thresh)
+
     def _initialize_actors(self):
-        x = self._episode_rng.uniform(0.1, 0.2)
+        x = self._episode_rng.uniform(0.05, 0.15)
         y = self._episode_rng.uniform(-0.2, -0.1)
         xyz = np.hstack([x, y, self.block_half_size[2]])
         q = [1, 0, 0, 0]
         self.obj.set_pose(Pose(xyz, q))
-        xyz_clutter = np.array([0, 0, self.clutter_size[2]])
-        self.clutter.set_pose(Pose(xyz_clutter, q))
+        # xyz_clutter = np.array([0, 0, self.clutter_size[2]])
+        # self.clutter.set_pose(Pose(xyz_clutter, q))
 
     def _initialize_task(self):
         self.goal_pos = self.obj.pose.p + [0, 0.2, 0]
@@ -337,7 +343,7 @@ class SlideBlockeEnv(PushCubeEnv):
         a_euler = (-pi, 0, a_angle_z + pi/2)
         a_rot = euler2quat(*a_euler)
 
-        y_offset = np.array([0, -0.06, 0])
+        y_offset = np.array([0, -0.1, -0.02])
 
         # Transform to np.ndarray
         move_goal_behind_a = np.concatenate(
@@ -347,10 +353,11 @@ class SlideBlockeEnv(PushCubeEnv):
             [root2move_goal_b.p, a_rot])
 
         seq = [
+            Action(ActionType.CLOSE_GRIPPER),
             Action(ActionType.MOVE_TO, goal=move_goal_behind_a),
             Action(ActionType.NOOP, goal=10),
-            Action(ActionType.CLOSE_GRIPPER),
-            Action(ActionType.NOOP, goal=10),
+            # Action(ActionType.CLOSE_GRIPPER),
+            # Action(ActionType.NOOP, goal=10),
             Action(ActionType.MOVE_TO, goal=move_goal_b),
             Action(ActionType.NOOP, goal=30),
         ]
