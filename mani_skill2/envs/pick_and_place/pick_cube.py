@@ -187,6 +187,52 @@ class LiftCubeEnv(PickCubeEnv):
 
     def compute_normalized_dense_reward(self, **kwargs):
         return self.compute_dense_reward(**kwargs) / 2.25
+    
+@register_env("LiftBlock-v0", max_episode_steps=200)
+class LiftBlockEnv(LiftCubeEnv):
+    """Lift the cube to a certain height. Simplified block rotation."""
+    def _initialize_actors(self):
+        xy = self._episode_rng.uniform(-0.1, 0.1, [2])
+        xyz = np.hstack([xy, self.cube_half_size[2]])
+        q = [1, 0, 0, 0]
+        if self.obj_init_rot_z:
+            ori = self._episode_rng.uniform(-np.pi/2, np.pi/2)
+            q = euler2quat(0, 0, ori)
+        self.obj.set_pose(Pose(xyz, q))
+
+    def get_solution_sequence(self):
+        goal_a2w = copy(self.obj.pose)
+
+        root2w = self.agent.robot.get_root_pose()
+        w2root = root2w.inv()
+
+        root2move_goal_a = w2root.transform(goal_a2w)
+
+        a_quat = root2move_goal_a.q
+        a_euler = quat2euler(a_quat)
+        a_angle_z = a_euler[2]
+        a_euler = (-pi, 0, a_angle_z)
+        a_rot = euler2quat(*a_euler)
+
+        lift_offset = np.array([0, 0, 0.3])
+
+        # Transform to np.ndarray
+        move_goal_above_a = np.concatenate(
+            [root2move_goal_a.p, a_rot]
+        )
+        move_goal_b = np.concatenate(
+            [root2move_goal_a.p + lift_offset, a_rot])
+
+        seq = [
+            Action(ActionType.MOVE_TO, goal=move_goal_above_a),
+            Action(ActionType.NOOP, goal=10),
+            Action(ActionType.CLOSE_GRIPPER),
+            Action(ActionType.NOOP, goal=10),
+            Action(ActionType.MOVE_TO, goal=move_goal_b),
+            Action(ActionType.NOOP, goal=30),
+        ]
+
+        return seq
 
 @register_env("PushCube-v0", max_episode_steps=500)
 class PushCubeEnv(PickCubeEnv):
@@ -326,6 +372,13 @@ class SlideBlockeEnv(PushCubeEnv):
     def _initialize_task(self):
         self.goal_pos = self.obj.pose.p + [0, 0.2, 0]
         self.goal_site.set_pose(Pose(self.goal_pos))
+
+    def evaluate(self, **kwargs):
+        is_obj_placed = self.check_obj_placed()
+        return dict(
+            is_obj_placed=is_obj_placed,
+            success=is_obj_placed,
+        )
 
     def get_solution_sequence(self):
         goal_a2w = copy(self.obj.pose)
