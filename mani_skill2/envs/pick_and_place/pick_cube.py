@@ -191,12 +191,25 @@ class LiftCubeEnv(PickCubeEnv):
 @register_env("LiftBlock-v0", max_episode_steps=200)
 class LiftBlockEnv(LiftCubeEnv):
     """Lift the cube to a certain height. Simplified block rotation."""
+
+    def __init__(self, *args, obj_init_rot_z=True, **kwargs):
+        self.obj_init_rot_z = obj_init_rot_z
+        self.cube_half_size = np.array([0.03] * 3, np.float32)
+        StationaryManipulationEnv.__init__(self, *args, **kwargs)
+
+
     def _initialize_actors(self):
-        xy = self._episode_rng.uniform(-0.1, 0.1, [2])
+        # angle_min, angle_max = -1/4 * np.pi, 1/4 * np.pi
+        # angle = self._episode_rng.uniform(angle_min, angle_max)
+        # radius = self._episode_rng.uniform(0.14, 0.16)
+        # x = radius * np.cos(angle)
+        # y = radius * np.sin(angle)
+        # xyz = np.hstack([x, y, self.cube_half_size[2]])
+        xy = self._episode_rng.uniform(0.05, 0.1, [2])
         xyz = np.hstack([xy, self.cube_half_size[2]])
         q = [1, 0, 0, 0]
         if self.obj_init_rot_z:
-            ori = self._episode_rng.uniform(-np.pi/2, np.pi/2)
+            ori = self._episode_rng.uniform(np.pi/4, np.pi/2)
             q = euler2quat(0, 0, ori)
         self.obj.set_pose(Pose(xyz, q))
 
@@ -214,10 +227,14 @@ class LiftBlockEnv(LiftCubeEnv):
         a_euler = (-pi, 0, a_angle_z)
         a_rot = euler2quat(*a_euler)
 
+        z_offset = np.array([0, 0, 0.1])
         lift_offset = np.array([0, 0, 0.3])
 
         # Transform to np.ndarray
         move_goal_above_a = np.concatenate(
+            [root2move_goal_a.p + z_offset, a_rot]
+        )
+        move_goal_at_a = np.concatenate(
             [root2move_goal_a.p, a_rot]
         )
         move_goal_b = np.concatenate(
@@ -225,14 +242,24 @@ class LiftBlockEnv(LiftCubeEnv):
 
         seq = [
             Action(ActionType.MOVE_TO, goal=move_goal_above_a),
-            Action(ActionType.NOOP, goal=10),
+            Action(ActionType.MOVE_TO, goal=move_goal_at_a),
+            # Action(ActionType.NOOP, goal=10),
             Action(ActionType.CLOSE_GRIPPER),
-            Action(ActionType.NOOP, goal=10),
+            # Action(ActionType.NOOP, goal=10),
             Action(ActionType.MOVE_TO, goal=move_goal_b),
             Action(ActionType.NOOP, goal=30),
         ]
 
         return seq
+
+    def evaluate(self, **kwargs):
+        is_obj_placed = self.check_obj_placed()
+        is_robot_static = self.check_robot_static()
+        return dict(
+            is_obj_placed=is_obj_placed,
+            is_robot_static=is_robot_static,
+            success=is_obj_placed,
+        )
 
 @register_env("PushCube-v0", max_episode_steps=500)
 class PushCubeEnv(PickCubeEnv):
@@ -410,6 +437,77 @@ class SlideBlockeEnv(PushCubeEnv):
             Action(ActionType.MOVE_TO, goal=move_goal_behind_a),
             Action(ActionType.NOOP, goal=10),
             # Action(ActionType.CLOSE_GRIPPER),
+            # Action(ActionType.NOOP, goal=10),
+            Action(ActionType.MOVE_TO, goal=move_goal_b),
+            Action(ActionType.NOOP, goal=30),
+        ]
+
+        return seq
+    
+
+@register_env("LiftBottle-v0", max_episode_steps=500)
+class LiftBottleEnv(LiftCubeEnv):
+    """Lift the bottle to a certain height."""
+
+    goal_height = 0.2
+
+    def __init__(self, *args, obj_init_rot_z=True, **kwargs):
+        self.obj_init_rot_z = obj_init_rot_z
+        self.block_half_size = np.array([0.02, 0.02, 0.10] * 3, np.float32)
+        StationaryManipulationEnv.__init__(self, *args, **kwargs)
+
+    def _load_actors(self):
+        self._add_ground(render=self.bg_name is None)
+        self.obj = self._build_cube(self.block_half_size, color=(1, 0, 0))
+        self.goal_site = self._build_sphere_site(self.goal_thresh)
+
+    def _initialize_actors(self):
+        rand_x = self._episode_rng.uniform(0., 0.05)
+        x = 0.2 + rand_x
+        self.rand_x = rand_x
+        y = -0.2
+        xyz = np.hstack([x, y, self.block_half_size[2]])
+        q = [1, 0, 0, 0]
+        self.obj.set_pose(Pose(xyz, q))
+
+    def check_obj_placed(self):
+        return self.obj.pose.p[2] >= self.goal_height + self.block_half_size[2]
+
+    def get_solution_sequence(self):
+        goal_a2w = copy(self.obj.pose)
+
+        root2w = self.agent.robot.get_root_pose()
+        w2root = root2w.inv()
+
+        root2move_goal_a = w2root.transform(goal_a2w)
+
+        a_quat = root2move_goal_a.q
+        a_euler = quat2euler(a_quat)
+        a_angle_z = a_euler[2]
+        a_euler = (-pi, -pi/2, a_angle_z)
+        a_rot = euler2quat(*a_euler)
+
+        z_offset = np.array([0, 0, 0.1])
+        lift_offset = np.array([0, 0, 0.25])
+
+        x_offset = np.array([-0.05, 0, 0])
+
+        # Transform to np.ndarray
+        move_goal_above_a = np.concatenate(
+            [root2move_goal_a.p + x_offset, a_rot]
+        )
+
+        move_goal_at_a = np.concatenate(
+            [root2move_goal_a.p, a_rot]
+        )
+        move_goal_b = np.concatenate(
+            [root2move_goal_a.p + lift_offset, a_rot])
+
+        seq = [
+            Action(ActionType.MOVE_TO, goal=move_goal_above_a),
+            Action(ActionType.NOOP, goal=20),
+            Action(ActionType.MOVE_TO, goal=move_goal_at_a),
+            Action(ActionType.CLOSE_GRIPPER),
             # Action(ActionType.NOOP, goal=10),
             Action(ActionType.MOVE_TO, goal=move_goal_b),
             Action(ActionType.NOOP, goal=30),
