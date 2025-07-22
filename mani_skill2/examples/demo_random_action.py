@@ -12,7 +12,7 @@ def parse_args(args=None):
     parser.add_argument("-e", "--env-id", type=str, default="PickCube-v0")
     parser.add_argument("-o", "--obs-mode", type=str, default="none")
     parser.add_argument("--reward-mode", type=str)
-    parser.add_argument("-c", "--control-mode", type=str)
+    parser.add_argument("-c", "--control-mode", type=str, default="pd_joint_pos")
     parser.add_argument("--render-mode", type=str)
     parser.add_argument("--record-dir", type=str)
     parser.add_argument("--quiet", action="store_true", help="Disable verbose output.")
@@ -50,8 +50,8 @@ def main(args):
     if verbose:
         print("Observation space", env.observation_space)
         print("Action space", env.action_space)
-        print("Control mode", env.control_mode)
-        print("Reward mode", env.reward_mode)
+        print("Control mode", env.unwrapped.control_mode)
+        print("Reward mode", env.unwrapped.reward_mode)
 
     obs, _ = env.reset()
     if args.render_mode is not None:

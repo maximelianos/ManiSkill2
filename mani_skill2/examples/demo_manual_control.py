@@ -60,15 +60,15 @@ def main():
 
     print("Observation space", env.observation_space)
     print("Action space", env.action_space)
-    print("Control mode", env.control_mode)
-    print("Reward mode", env.reward_mode)
+    print("Control mode", env.unwrapped.control_mode)
+    print("Reward mode", env.unwrapped.reward_mode)
 
     obs, _ = env.reset()
     after_reset = True
 
     # Viewer
     if args.enable_sapien_viewer:
-        env.render_human()
+        env.unwrapped.render_human()
     opencv_viewer = OpenCVViewer(exit_on_esc=False)
 
     def render_wait():
@@ -80,9 +80,9 @@ def main():
                 break
 
     # Embodiment
-    has_base = "base" in env.agent.controller.configs
-    num_arms = sum("arm" in x for x in env.agent.controller.configs)
-    has_gripper = any("gripper" in x for x in env.agent.controller.configs)
+    has_base = "base" in env.unwrapped.agent.controller.configs
+    num_arms = sum("arm" in x for x in env.unwrapped.agent.controller.configs)
+    has_gripper = any("gripper" in x for x in env.unwrapped.agent.controller.configs)
     gripper_action = 1
     EE_ACTION = 0.1
 
@@ -91,7 +91,7 @@ def main():
         # Visualization
         # -------------------------------------------------------------------------- #
         if args.enable_sapien_viewer:
-            env.render_human()
+            env.unwrapped.render_human()
 
         render_frame = env.render()
 
@@ -232,10 +232,10 @@ def main():
                 left_arm=np.zeros_like(ee_action),
                 left_gripper=np.zeros_like(gripper_action),
             )
-            action = env.agent.controller.from_action_dict(action_dict)
+            action = env.unwrapped.agent.controller.from_action_dict(action_dict)
         else:
             action_dict = dict(base=base_action, arm=ee_action, gripper=gripper_action)
-            action = env.agent.controller.from_action_dict(action_dict)
+            action = env.unwrapped.agent.controller.from_action_dict(action_dict)
 
         obs, reward, terminated, truncated, info = env.step(action)
         print("reward", reward)
