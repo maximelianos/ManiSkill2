@@ -101,6 +101,7 @@ def initialize_sources():
     DATA_GROUPS["OpenCabinetDoor-v1"] = category_uids["cabinet_door"]
     DATA_GROUPS["PushChair-v1"] = category_uids["chair"]
     DATA_GROUPS["MoveBucket-v1"] = category_uids["bucket"]
+    DATA_GROUPS["LiftBucket-v0"] = category_uids["bucket"]
     DATA_GROUPS["TurnFaucet-v0"] = category_uids["faucet"]
 
 
