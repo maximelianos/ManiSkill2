@@ -205,13 +205,13 @@ class LiftKettleEnv(LiftKettleBaseEnv):
     def _load_kettle(self):
         loader = self._scene.create_urdf_loader()
         loader.scale = self.model_scale
-        loader.fix_root_link = True
+        loader.fix_root_link = False
 
         model_dir = self.asset_root / str(self.model_id)
         urdf_path = model_dir / "mobility.urdf"
         loader.load_multiple_collisions_from_file = True
 
-        density = self.model_info.get("density", 8e3)
+        density = self.model_info.get("density", 1e2) # 8e3
         articulation = loader.load(str(urdf_path), config={"density": density})
         articulation.set_name("kettle")
 
@@ -275,7 +275,7 @@ class LiftKettleEnv(LiftKettleBaseEnv):
         p[2] = self.model_offset[2]
         ori = self._episode_rng.uniform(-np.pi / 12, np.pi / 12)
         q = euler2quat(0, 0, ori)
-        self.kettle.set_pose(Pose(p, q))
+        self.kettle.set_pose(Pose(p, q))        
 
     def _initialize_task(self):
         self._set_target_handle()

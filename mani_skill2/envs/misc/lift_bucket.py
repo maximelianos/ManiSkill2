@@ -96,8 +96,6 @@ class LiftBucketBaseEnv(BaseEnv):
 
 @register_env("LiftBucket-v0", max_episode_steps=200)
 class LiftBucketEnv(LiftBucketBaseEnv):
-    bucket_link: sapien.Link
-    handle_link: sapien.Link
 
     def __init__(
         self,
@@ -170,6 +168,8 @@ class LiftBucketEnv(LiftBucketBaseEnv):
         self.model_id = model_id
         self.model_info = self.model_db[self.model_id]
 
+        print("model:", model_id)
+
         # Scale
         if model_scale is None:
             model_scale = self.model_info.get("scale")
@@ -195,28 +195,72 @@ class LiftBucketEnv(LiftBucketBaseEnv):
 
         return reconfigure
 
+    def _load_actors(self):
+        super()._load_actors()
+        
+        # Create cube
+        self.cube = self._create_cube()
+        
+        # Create sphere  
+        self.sphere = self._create_sphere()
+
     def _load_articulations(self):
         self.bucket = self._load_bucket()
         # Cache qpos to restore
         self._bucket_init_qpos = self.bucket.get_qpos()
 
-        # Set friction and damping for all joints
+        # Set low friction and damping for all joints to allow movement
         for joint in self.bucket.get_active_joints():
-            joint.set_friction(1.0)
-            joint.set_drive_property(0.0, 10.0)
-
+            joint.set_friction(1e6)  # Very low friction for easy movement
+            joint.set_drive_property(1e6, 1e6)  # No stiffness, low damping
+        
         self._set_handle_links()
+
+    def _create_cube(self):
+        builder = self._scene.create_actor_builder()
+        
+        # Add collision shape
+        builder.add_box_collision(half_size=[0.02, 0.02, 0.02])
+        
+        # Add visual shape
+        mat = self._renderer.create_material()
+        mat.set_base_color([0.8, 0.2, 0.2, 1.0])  # Red color
+        mat.metallic = 0.0
+        mat.roughness = 0.3
+        builder.add_box_visual(half_size=[0.02, 0.02, 0.02], material=mat)
+        
+        cube = builder.build(name="cube")
+        cube.set_damping(0.1, 0.1)
+        return cube
+
+    def _create_sphere(self):
+        builder = self._scene.create_actor_builder()
+        
+        # Add collision shape
+        builder.add_sphere_collision(radius=0.02)
+        
+        # Add visual shape
+        mat = self._renderer.create_material()
+        mat.set_base_color([0.2, 0.8, 0.2, 1.0])  # Green color
+        mat.metallic = 0.0
+        mat.roughness = 0.3
+        builder.add_sphere_visual(radius=0.02, material=mat)
+        
+        sphere = builder.build(name="sphere")
+        sphere.set_damping(0.1, 0.1)
+        return sphere
 
     def _load_bucket(self):
         loader = self._scene.create_urdf_loader()
         loader.scale = self.model_scale
-        loader.fix_root_link = True
+        # KEY FIX: Set fix_root_link = False to make bucket movable
+        loader.fix_root_link = False
 
         model_dir = self.asset_root / str(self.model_id)
         urdf_path = model_dir / "mobility.urdf"
         loader.load_multiple_collisions_from_file = True
 
-        density = self.model_info.get("density", 8e3)
+        density = self.model_info.get("density", 1e2)  # Reduced density for easier lifting
         articulation = loader.load(str(urdf_path), config={"density": density})
         articulation.set_name("bucket")
 
@@ -274,11 +318,21 @@ class LiftBucketEnv(LiftBucketBaseEnv):
         self.lfinger_mesh = get_actor_mesh(self.lfinger, False)
         self.rfinger_mesh = get_actor_mesh(self.rfinger, False)
 
+    def _initialize_actors(self):
+        # Initialize cube at predefined position
+        cube_pos = np.array([0.1, 0.1, 0.05])
+        self.cube.set_pose(Pose(cube_pos))
+        
+        # Initialize sphere at predefined position
+        sphere_pos = np.array([-0.1, 0.1, 0.05])
+        self.sphere.set_pose(Pose(sphere_pos))
+
     def _initialize_articulations(self):
+        """ Initial bucket pose """
         p = np.zeros(3)
         p[:2] = self._episode_rng.uniform(-0.05, 0.05, [2])
-        p[2] = self.model_offset[2]
-        ori = self._episode_rng.uniform(-np.pi / 12, np.pi / 12)
+        p[2] = self.model_offset[2] + 0.3
+        ori = np.pi/2
         q = euler2quat(0, 0, ori)
         self.bucket.set_pose(Pose(p, q))
 
@@ -291,7 +345,7 @@ class LiftBucketEnv(LiftBucketBaseEnv):
         qpos = self._bucket_init_qpos.copy()
         self.bucket.set_qpos(qpos)
 
-        # For dense reward
+        # For dense reward - cache finger point clouds
         self.lfinger_pcd = trimesh.sample.sample_surface(
             self.lfinger_mesh, 256, seed=self._episode_seed
         )[0]
@@ -318,18 +372,27 @@ class LiftBucketEnv(LiftBucketBaseEnv):
         cmass_pose = self.handle_link.pose * self.handle_link.cmass_local_pose
         self.handle_link_pos = cmass_pose.p
 
+    @property
+    def bucket_pose(self):
+        """Get the center of mass (COM) pose of the bucket."""
+        return self.bucket.pose.transform(self.bucket.cmass_local_pose)
+
     def _get_obs_extra(self) -> OrderedDict:
         obs = OrderedDict(
             tcp_pose=vectorize_pose(self.tcp.pose),
             lift_height=np.array(self.lift_height),
             handle_link_pos=self.handle_link_pos,
             bucket_pos=self.bucket.pose.p,
+            cube_pos=self.cube.pose.p,
+            sphere_pos=self.sphere.pose.p,
         )
         if self._obs_mode in ["state", "state_dict", "state_dict+image"]:
             current_height = self.bucket.pose.p[2] - self.init_bucket_pos[2]
             height_diff = self.lift_height - current_height
             obs["height_diff"] = np.array(height_diff)
             obs["handle_pose"] = vectorize_pose(self.handle_link.pose)
+            obs["cube_pose"] = vectorize_pose(self.cube.pose)
+            obs["sphere_pose"] = vectorize_pose(self.sphere.pose)
         return obs
 
     @property
